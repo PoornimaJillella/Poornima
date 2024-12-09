@@ -6,6 +6,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
+from sklearn.utils import class_weight
 from PIL import Image
 
 
@@ -39,24 +40,50 @@ def preprocess_data(df):
     return X_train, X_test, y_train, y_test, label_encoder
 
 
-def create_and_train_model(X_train, y_train):
+def create_and_train_model(X_train, y_train, X_test, y_test):
     """
     Defines, compiles, and trains a basic model for classification.
     Saves model after training.
     """
+    # Compute class weights to handle class imbalance
+    class_weights = class_weight.compute_class_weight(
+        'balanced',
+        np.unique(y_train.argmax(axis=1)),  # Assuming y_train is one-hot encoded
+        y_train.argmax(axis=1)
+    )
+
+    class_weights_dict = {i: class_weights[i] for i in range(len(class_weights))}
+
+    # Define the model architecture
     model = Sequential([
         Dense(64, activation="relu", input_shape=(X_train.shape[1],)),
         Dropout(0.5),
         Dense(32, activation="relu"),
-        Dense(y_train.shape[1], activation="softmax")
+        Dense(y_train.shape[1], activation="softmax")  # Adjust number of output neurons to match number of classes
     ])
 
+    # Compile the model
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-    model.fit(X_train, y_train, validation_split=0.2, epochs=10, batch_size=16, verbose=2)
+
+    # Train the model with class weights
+    model.fit(
+        X_train,
+        y_train,
+        validation_split=0.2,
+        epochs=10,
+        batch_size=16,
+        class_weight=class_weights_dict,
+        verbose=2
+    )
 
     # Save the model
     model.save('trained_skin_cancer_model.keras')
     st.success("✅ Model trained and saved successfully!")
+
+    # Evaluate the model
+    loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
+    st.success(f"🔍 Test Accuracy: {accuracy:.2%}")
+    
     return model
 
 
@@ -68,16 +95,8 @@ def preprocess_uploaded_image(image_file):
         # Open the image and resize
         image = Image.open(image_file).convert('RGB').resize((128, 128))  # Resize image
         image = np.array(image) / 255.0  # Normalize pixel values to 0-1
-
-        # Extract numerical features: compute mean pixel intensity across each channel (R, G, B)
-        mean_red = np.mean(image[:, :, 0])
-        mean_green = np.mean(image[:, :, 1])
-        mean_blue = np.mean(image[:, :, 2])
-        # Extract additional statistics
-        image_features = np.array([mean_red, mean_green, mean_blue, np.mean(image)])  # Example: mean pixel values
-        image_features = np.expand_dims(image_features, axis=0)  # Reshape for prediction
-
-        return image_features
+        image = np.expand_dims(image, axis=0)  # Reshape for batch input
+        return image
     except Exception as e:
         st.error(f"Error processing the image: {e}")
         print(e)
@@ -146,7 +165,7 @@ elif app_mode == "Train & Test Model":
         if st.button("Train Model"):
             with st.spinner("🔄 Training model..."):
                 X_train, X_test, y_train, y_test, label_encoder = preprocess_data(df)
-                create_and_train_model(X_train, y_train)
+                create_and_train_model(X_train, y_train, X_test, y_test)
 
 elif app_mode == "Prediction":
     st.header("🔮 Make Predictions")
@@ -171,6 +190,7 @@ elif app_mode == "About":
     - Testing using your uploaded image for prediction.
     - Real-time predictions from trained models.
     """)
+
 
 
 
