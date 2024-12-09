@@ -13,11 +13,10 @@ from PIL import Image
 def preprocess_data(df):
     """
     Preprocess data for training. Handles encoding and splits data.
-    Normalizes features and extracts target variables correctly.
     """
-    # Label encoding target variable dynamically
+    # Label encoding target variable
     label_encoder = LabelEncoder()
-    df['dx'] = label_encoder.fit_transform(df['dx'])  # Encode disease types dynamically
+    df['dx'] = label_encoder.fit_transform(df['dx'])
 
     # Handle missing data
     if 'age' in df.columns:
@@ -30,45 +29,30 @@ def preprocess_data(df):
     # Handle remaining NaN values
     X = X.apply(pd.to_numeric, errors='coerce').fillna(0)
 
-    # Normalize features with Rescaling
+    # Normalize features
     scaler = tf.keras.layers.Rescaling(1.0 / 255)
     X = scaler(tf.constant(X)).numpy()
 
     # Split data
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    # Extract class names dynamically
-    class_names = label_encoder.inverse_transform(np.arange(len(label_encoder.classes_)))
-
-    # Return the splits and class names
-    return X_train, X_test, y_train, y_test, class_names, label_encoder
+    return X_train, X_test, y_train, y_test, label_encoder
 
 
 def create_and_train_model(X_train, y_train):
     """
-    Defines, compiles, and trains a model.
-    If class imbalances exist, adjust by using class weights.
+    Defines, compiles, and trains a basic model for classification.
+    Saves model after training.
     """
-    # Compute class weights if imbalance exists
-    class_weights = {}
-    class_counts = np.sum(y_train, axis=0)
-    for idx, count in enumerate(class_counts):
-        if count > 0:
-            class_weights[idx] = len(y_train) / (len(class_counts) * count)
-
-    # Define the model architecture
     model = Sequential([
-        Dense(128, activation="relu", input_shape=(X_train.shape[1],)),
-        Dropout(0.4),
-        Dense(64, activation="relu"),
-        Dropout(0.3),
+        Dense(64, activation="relu", input_shape=(X_train.shape[1],)),
+        Dropout(0.5),
+        Dense(32, activation="relu"),
         Dense(y_train.shape[1], activation="softmax")
     ])
 
-    # Compile model
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-    # Train the model
-    model.fit(X_train, y_train, validation_split=0.2, epochs=10, batch_size=16, verbose=2, class_weight=class_weights)
+    model.fit(X_train, y_train, validation_split=0.2, epochs=10, batch_size=16, verbose=2)
 
     # Save the model
     model.save('trained_skin_cancer_model.keras')
@@ -78,45 +62,51 @@ def create_and_train_model(X_train, y_train):
 
 def preprocess_uploaded_image(image_file):
     """
-    Preprocesses the image for prediction by normalizing it as expected during model training.
+    Preprocess the uploaded image into numerical features expected by the model.
     """
     try:
-        # Open and preprocess the image
-        image = Image.open(image_file).convert('RGB').resize((128, 128))  # Resize to model's expected input size
-        image = np.array(image) / 255.0  # Normalize to range [0,1]
-        image = image.flatten()  # Flattening, depending on model's input expectations
-        image = np.expand_dims(image, axis=0)  # Add batch dimension
-        return image
+        # Open the image and resize
+        image = Image.open(image_file).convert('RGB').resize((128, 128))  # Resize image
+        image = np.array(image) / 255.0  # Normalize pixel values to 0-1
+
+        # Extract numerical features: compute mean pixel intensity across each channel (R, G, B)
+        mean_red = np.mean(image[:, :, 0])
+        mean_green = np.mean(image[:, :, 1])
+        mean_blue = np.mean(image[:, :, 2])
+        # Extract additional statistics
+        image_features = np.array([mean_red, mean_green, mean_blue, np.mean(image)])  # Example: mean pixel values
+        image_features = np.expand_dims(image_features, axis=0)  # Reshape for prediction
+
+        return image_features
     except Exception as e:
-        st.error(f"Error processing image: {e}")
+        st.error(f"Error processing the image: {e}")
         print(e)
         return None
 
 
-def run_prediction(image_file, class_names):
+def run_prediction(image_file):
     """
-    Run prediction on an uploaded image with dynamic class name mapping.
+    Run prediction on an uploaded image after preprocessing it into expected numerical features.
     """
+    # Load the trained model
     model = tf.keras.models.load_model('trained_skin_cancer_model.keras')
+
+    # Preprocess the uploaded image into features expected by the model
     features = preprocess_uploaded_image(image_file)
 
     if features is not None:
         try:
-            # Perform prediction
+            # Predict using the features
             predictions = model.predict(features)
             predicted_idx = np.argmax(predictions, axis=1)[0]
             confidence = predictions[0][predicted_idx]
 
-            # Map index back to class names
-            predicted_disease = class_names[predicted_idx]
-
-            return predicted_disease, confidence
+            return predicted_idx, confidence
         except Exception as e:
-            st.error(f"Prediction failed: {e}")
+            st.error(f"Error during model prediction: {e}")
             print(e)
             return None, None
     else:
-        st.error("Unable to preprocess image for prediction.")
         return None, None
 
 
@@ -125,40 +115,63 @@ st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
 
+# Mapping indices to disease names
+DISEASE_MAPPING = {
+    0: "Melanoma",
+    1: "Basal Cell Carcinoma",
+    2: "Squamous Cell Carcinoma",
+    3: "Benign Lesion"
+}
+
+
 # Main Pages
 if app_mode == "Home":
     st.title("🌿 Skin Cancer Detection App")
     st.markdown("""
-    This app lets you:
-    - Train a model using your own dataset.
-    - Predict skin cancer risk using a test image.
+    This web app allows you to:
+    - Train a model with your own CSV dataset.
+    - Test your uploaded image to check for skin cancer risk.
+    - Use a pre-trained model for instant predictions.
     """)
 
 elif app_mode == "Train & Test Model":
     st.header("🛠 Train & Test Model")
-    uploaded_file = st.file_uploader("Upload a CSV file with disease data", type=["csv"])
+    uploaded_file = st.file_uploader("Upload your CSV file for training", type=["csv"])
 
     if uploaded_file:
-        st.info("Dataset ready for training...")
+        st.info("📊 Dataset loaded successfully. Preparing for training...")
         df = pd.read_csv(uploaded_file)
+        st.write("Dataset Preview:", df.head())
+
         if st.button("Train Model"):
-            with st.spinner("Training model..."):
-                X_train, X_test, y_train, y_test, class_names, _ = preprocess_data(df)
+            with st.spinner("🔄 Training model..."):
+                X_train, X_test, y_train, y_test, label_encoder = preprocess_data(df)
                 create_and_train_model(X_train, y_train)
 
 elif app_mode == "Prediction":
-    st.header("🔮 Run Prediction")
-    uploaded_image = st.file_uploader("Upload image for testing", type=["jpg", "png"])
+    st.header("🔮 Make Predictions")
+    uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
 
     if uploaded_image:
-        st.image(uploaded_image, caption="Uploaded Image")
+        st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
         if st.button("Run Prediction"):
-            with st.spinner("Running predictions..."):
-                class_names = pd.read_csv('trained_skin_cancer_model.classes.csv').columns  # dynamically load mapping
-                disease_name, confidence = run_prediction(uploaded_image, class_names)
-                if disease_name:
+            with st.spinner("⏳ Running prediction..."):
+                predicted_idx, confidence = run_prediction(uploaded_image)
+                if predicted_idx is not None:
+                    disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
                     st.success(f"✅ Prediction Confidence: {confidence:.2f}")
                     st.subheader(f"Predicted Disease: {disease_name}")
+
+elif app_mode == "About":
+    st.header("📖 About This App")
+    st.markdown("""
+    This web application uses machine learning techniques to predict skin cancer risk from dermoscopic image data.
+    It was built using **Streamlit**, **TensorFlow**, and **Python**, and allows:
+    - Model training with your own labeled datasets.
+    - Testing using your uploaded image for prediction.
+    - Real-time predictions from trained models.
+    """)
+
 
 
 
