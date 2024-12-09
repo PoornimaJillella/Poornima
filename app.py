@@ -42,7 +42,7 @@ def preprocess_data(df):
 
 def create_and_train_model(X_train, y_train, X_test, y_test):
     """
-    Defines, compiles, and trains a basic model for classification.
+    Defines, compiles, and trains a basic model for classification with proper class handling.
     Handles class imbalance by computing class weights.
     Saves model after training.
     """
@@ -64,7 +64,7 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
         Dense(64, activation="relu", input_shape=(X_train.shape[1],)),
         Dropout(0.5),
         Dense(32, activation="relu"),
-        Dense(y_train.shape[1], activation="softmax")  # Adjust number of output neurons to match number of classes
+        Dense(4, activation="softmax")  # 4 classes for multi-class classification
     ])
 
     # Compile the model
@@ -100,23 +100,33 @@ def preprocess_uploaded_image(image_file):
     try:
         # Open the image and resize
         image = Image.open(image_file).convert('RGB').resize((128, 128))  # Resize to expected input dimensions
-        image = np.array(image) / 255.0  # Normalize pixel values to 0-1
-        
-        # Calculate mean pixel intensities as features
+        image = np.array(image) / 255.0  # Normalize pixel values
+
+        # Extract features
         mean_red = np.mean(image[:, :, 0])
         mean_green = np.mean(image[:, :, 1])
         mean_blue = np.mean(image[:, :, 2])
-        mean_intensity = np.mean(image)  # General mean pixel intensity
-        
+        mean_intensity = np.mean(image)
+
         # Create feature array with 4 numerical values
         image_features = np.array([mean_red, mean_green, mean_blue, mean_intensity])
         image_features = np.expand_dims(image_features, axis=0)  # Reshape for prediction
+
+        st.write("Extracted features from image:", image_features)
 
         return image_features
     except Exception as e:
         st.error(f"Error processing the image: {e}")
         print(e)
         return None
+
+
+DISEASE_MAPPING = {
+    0: "Melanoma",
+    1: "Basal Cell Carcinoma",
+    2: "Squamous Cell Carcinoma",
+    3: "Benign Lesion"
+}
 
 
 def run_prediction(image_file):
@@ -136,27 +146,24 @@ def run_prediction(image_file):
             predicted_idx = np.argmax(predictions, axis=1)[0]
             confidence = predictions[0][predicted_idx]
 
+            # Map prediction index back to a disease name
+            disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
+
+            st.success(f"✅ Prediction Confidence: {confidence:.2%}")
+            st.subheader(f"Predicted Disease: {disease_name}")
             return predicted_idx, confidence
         except Exception as e:
             st.error(f"Error during model prediction: {e}")
             print(e)
             return None, None
     else:
+        st.error("Failed to process the uploaded image.")
         return None, None
 
 
 # Sidebar Menu
 st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
-
-
-# Mapping indices to disease names
-DISEASE_MAPPING = {
-    0: "Melanoma",
-    1: "Basal Cell Carcinoma",
-    2: "Squamous Cell Carcinoma",
-    3: "Benign Lesion"
-}
 
 
 # Main Pages
@@ -191,11 +198,7 @@ elif app_mode == "Prediction":
         st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
         if st.button("Run Prediction"):
             with st.spinner("⏳ Running prediction..."):
-                predicted_idx, confidence = run_prediction(uploaded_image)
-                if predicted_idx is not None:
-                    disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
-                    st.success(f"✅ Prediction Confidence: {confidence:.2f}")
-                    st.subheader(f"Predicted Disease: {disease_name}")
+                run_prediction(uploaded_image)
 
 elif app_mode == "About":
     st.header("📖 About This App")
@@ -206,6 +209,7 @@ elif app_mode == "About":
     - Testing using your uploaded image for prediction.
     - Real-time predictions from trained models.
     """)
+
 
 
 
