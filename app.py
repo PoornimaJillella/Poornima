@@ -50,7 +50,7 @@ def plot_class_distribution(df):
     fig, ax = plt.subplots(figsize=(10, 5))
     class_counts.plot(kind='bar', ax=ax, color="orange")
     ax.set_title("Class Distribution in Uploaded Dataset")
-    ax.set_xlabel("Disease Types")
+    ax.set_xlabel("Disease Type")
     ax.set_ylabel("Number of Cases")
     st.pyplot(fig)
 
@@ -95,7 +95,7 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
         verbose=2
     )
 
-    # Plotting training history
+    # Training history visualization
     fig, ax = plt.subplots(1, 2, figsize=(12, 4))
     ax[0].plot(history.history['accuracy'], label='Train Accuracy')
     ax[0].plot(history.history['val_accuracy'], label='Validation Accuracy')
@@ -137,50 +137,29 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
     return model
 
 
-def run_prediction(image_file):
-    """
-    Run prediction on an uploaded image after preprocessing it into expected numerical features.
-    """
-    # Load the trained model
-    model = tf.keras.models.load_model('trained_skin_cancer_model.keras')
+# Home Page
+if st.sidebar.selectbox("Navigation", ["Home", "Train Model", "Prediction", "About"]) == "Home":
+    st.title("🌿 Skin Cancer Detection Dashboard")
+    st.markdown("""
+    **Welcome to the Skin Cancer Detection App!** 🚀
+    This app uses machine learning to:
+    - Train and test models using dermoscopic images or CSV data.
+    - Allow you to upload images to determine the likelihood of a skin cancer diagnosis.
+    - Visualize insights about data imbalances, model accuracy, and more.
+    """)
 
-    # Preprocess the uploaded image
-    features = preprocess_uploaded_image(image_file)
-
-    if features is not None:
-        try:
-            predictions = model.predict(features)
-            predicted_idx = np.argmax(predictions, axis=1)[0]
-            confidence = predictions[0][predicted_idx]
-            return predicted_idx, confidence
-        except Exception as e:
-            st.error(f"Error during model prediction: {e}")
-            return None, None
-    else:
-        return None, None
+    st.markdown("---")
+    st.subheader("How to Use:")
+    st.write("""
+    1. **Train Model**:
+        Upload CSV data containing images and labels to train your custom model.
+    2. **Prediction**:
+        Upload an image and predict skin cancer risk using our trained model.
+    3. **Explore Insights**:
+        Visualize model performance graphs and confusion matrices.
+    """)
+    st.markdown("---")
+    st.write("Select the options from the sidebar to get started!")
 
 
-# Sidebar Menu
-st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
-app_mode = st.sidebar.radio("Choose an option", ["Home", "Train Model", "Make Prediction", "About"])
-
-DISEASE_MAPPING = {
-    0: "Melanoma",
-    1: "Basal Cell Carcinoma",
-    2: "Squamous Cell Carcinoma",
-    3: "Benign Lesion"
-}
-
-# Main Pages
-if app_mode == "Train Model":
-    uploaded_file = st.file_uploader("Upload CSV for Training", type=["csv"])
-    if uploaded_file:
-        df = pd.read_csv(uploaded_file)
-        st.write("Uploaded Dataset Preview", df.head())
-        if st.button("Visualize Class Distribution"):
-            plot_class_distribution(df)
-        if st.button("Train Model"):
-            with st.spinner("Training model..."):
-                X_train, X_test, y_train, y_test, _, df = preprocess_data(df)
-                create_and_train_model(X_train, y_train, X_test, y_test)
 
