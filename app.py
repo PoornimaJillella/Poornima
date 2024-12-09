@@ -64,19 +64,26 @@ def run_prediction(image_file):
     """
     Run prediction on an uploaded image.
     """
+    # Load the trained model
     model = tf.keras.models.load_model('trained_skin_cancer_model.keras')
-    
+
     # Process the uploaded image
-    image = Image.open(image_file).resize((128, 128))
-    image = np.array(image) / 255.0  # Normalize image values
-    image = np.expand_dims(image, axis=0)  # Add batch dimension
+    try:
+        # Resize and normalize the image
+        image = Image.open(image_file).convert('RGB').resize((128, 128))  # Resize to match model's expected input
+        image = np.array(image) / 255.0  # Normalize pixel values between 0 and 1
+        image = np.expand_dims(image, axis=0)  # Add batch dimension
 
-    # Predict
-    predictions = model.predict(image)
-    predicted_idx = np.argmax(predictions, axis=1)[0]
-    confidence = predictions[0][predicted_idx]
+        # Predict
+        predictions = model.predict(image)
+        predicted_idx = np.argmax(predictions, axis=1)[0]
+        confidence = predictions[0][predicted_idx]
 
-    return predicted_idx, confidence
+        return predicted_idx, confidence
+    except Exception as e:
+        st.error(f"Error during prediction: {e}")
+        print(e)
+        return None, None
 
 
 # Sidebar Menu
@@ -117,8 +124,9 @@ elif app_mode == "Prediction":
         if st.button("Run Prediction"):
             with st.spinner("Running prediction..."):
                 predicted_idx, confidence = run_prediction(uploaded_image)
-                st.success(f"Prediction Confidence: {confidence:.2f}")
-                st.write(f"Predicted Index: {predicted_idx}")
+                if predicted_idx is not None:
+                    st.success(f"Prediction Confidence: {confidence:.2f}")
+                    st.write(f"Predicted Class Index: {predicted_idx}")
 
 elif app_mode == "About":
     st.header("About")
@@ -127,5 +135,6 @@ elif app_mode == "About":
     Built with Streamlit & TensorFlow, this application allows model training, testing with custom image data, 
     and leveraging machine learning models for inference.
     """)
+
 
 
