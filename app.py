@@ -126,7 +126,7 @@ DISEASE_MAPPING = {
 
 # Main Pages
 if app_mode == "Home":
-    st.title("🌿 Skin Cancer Detection App")
+    st.title("Skin Cancer Detection App")
     st.markdown("""
     This web app allows you to:
     - Train a model with your own CSV dataset.
