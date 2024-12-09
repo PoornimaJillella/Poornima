@@ -8,8 +8,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import class_weight
 from PIL import Image
-import matplotlib.pyplot as plt
-from sklearn.metrics import confusion_matrix
 
 
 # Helper Functions
@@ -40,19 +38,6 @@ def preprocess_data(df):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     return X_train, X_test, y_train, y_test, label_encoder
-
-
-def plot_class_distribution(df):
-    """
-    Visualize class distribution to identify imbalances in the dataset.
-    """
-    class_counts = df['dx'].value_counts()
-    fig, ax = plt.subplots(figsize=(10, 5))
-    class_counts.plot(kind='bar', ax=ax, color="orange")
-    ax.set_title("Class Distribution in Uploaded Dataset")
-    ax.set_xlabel("Disease Type")
-    ax.set_ylabel("Number of Cases")
-    st.pyplot(fig)
 
 
 def create_and_train_model(X_train, y_train, X_test, y_test):
@@ -86,7 +71,7 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
     # Train the model with class weights
-    history = model.fit(
+    model.fit(
         X_train,
         y_train,
         validation_split=0.2,
@@ -96,33 +81,14 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
         verbose=2
     )
 
-    # Training history visualization
-    fig, ax = plt.subplots(1, 2, figsize=(12, 4))
-    ax[0].plot(history.history['accuracy'], label='Train Accuracy')
-    ax[0].plot(history.history['val_accuracy'], label='Validation Accuracy')
-    ax[0].set_title("Model Accuracy Over Epochs")
-    ax[0].set_xlabel("Epochs")
-    ax[0].set_ylabel("Accuracy")
-    ax[0].legend()
-
-    ax[1].plot(history.history['loss'], label='Train Loss')
-    ax[1].plot(history.history['val_loss'], label='Validation Loss')
-    ax[1].set_title("Loss Over Epochs")
-    ax[1].set_xlabel("Epochs")
-    ax[1].set_ylabel("Loss")
-    ax[1].legend()
-
-    st.pyplot(fig)
-
-    # Evaluate the model
-    loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
-    st.success(f"🔍 Model Test Accuracy: {accuracy:.2%}")
-    st.success(f"🔍 Model Test Loss: {loss:.4f}")
-
     # Save the model
     model.save('trained_skin_cancer_model.keras')
     st.success("✅ Model trained and saved successfully!")
 
+    # Evaluate the model
+    loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
+    st.success(f"🔍 Test Accuracy: {accuracy:.2%}")
+    
     return model
 
 
@@ -146,9 +112,6 @@ def preprocess_uploaded_image(image_file):
         image_features = np.array([mean_red, mean_green, mean_blue, mean_intensity])
         image_features = np.expand_dims(image_features, axis=0)  # Reshape for prediction
 
-        # Debugging Log
-        st.write("Processed features from uploaded image:", image_features)
-
         return image_features
     except Exception as e:
         st.error(f"Error processing the image: {e}")
@@ -168,15 +131,8 @@ def run_prediction(image_file):
 
     if features is not None:
         try:
-            # Debugging Log
-            st.write("Features passed to model for prediction:", features)
-
             # Predict using the features
             predictions = model.predict(features)
-
-            # Log raw predictions
-            st.write("Raw model predictions (probabilities):", predictions)
-
             predicted_idx = np.argmax(predictions, axis=1)[0]
             confidence = predictions[0][predicted_idx]
 
@@ -193,7 +149,8 @@ def run_prediction(image_file):
 st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
-# Disease Mapping
+
+# Mapping indices to disease names
 DISEASE_MAPPING = {
     0: "Melanoma",
     1: "Basal Cell Carcinoma",
@@ -201,22 +158,51 @@ DISEASE_MAPPING = {
     3: "Benign Lesion"
 }
 
+
 # Main Pages
 if app_mode == "Home":
     st.title("🌿 Skin Cancer Detection App")
+    st.markdown("""
+    This web app allows you to:
+    - Train a model with your own CSV dataset.
+    - Test your uploaded image to check for skin cancer risk.
+    - Use a pre-trained model for instant predictions.
+    """)
+
 elif app_mode == "Train & Test Model":
+    st.header("🛠 Train & Test Model")
     uploaded_file = st.file_uploader("Upload your CSV file for training", type=["csv"])
+
     if uploaded_file:
+        st.info("📊 Dataset loaded successfully. Preparing for training...")
         df = pd.read_csv(uploaded_file)
+        st.write("Dataset Preview:", df.head())
+
         if st.button("Train Model"):
-            X_train, X_test, y_train, y_test, label_encoder = preprocess_data(df)
-            create_and_train_model(X_train, y_train, X_test, y_test)
+            with st.spinner("🔄 Training model..."):
+                X_train, X_test, y_train, y_test, label_encoder = preprocess_data(df)
+                create_and_train_model(X_train, y_train, X_test, y_test)
+
 elif app_mode == "Prediction":
+    st.header("🔮 Make Predictions")
     uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
+
     if uploaded_image:
-        predicted_idx, confidence = run_prediction(uploaded_image)
-        if predicted_idx is not None:
-            st.success(f"Prediction Confidence: {confidence:.2f}")
-            st.subheader(f"Predicted Disease: {DISEASE_MAPPING.get(predicted_idx)}")
-else:
+        st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
+        if st.button("Run Prediction"):
+            with st.spinner("⏳ Running prediction..."):
+                predicted_idx, confidence = run_prediction(uploaded_image)
+                if predicted_idx is not None:
+                    disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
+                    st.success(f"✅ Prediction Confidence: {confidence:.2f}")
+                    st.subheader(f"Predicted Disease: {disease_name}")
+
+elif app_mode == "About":
     st.header("📖 About This App")
+    st.markdown("""
+    This web application uses machine learning techniques to predict skin cancer risk from dermoscopic image data.
+    It was built using Streamlit, **TensorFlow, and **Python, and allows:
+    - Model training with your own labeled datasets.
+    - Testing using your uploaded image for prediction.
+    - Real-time predictions from trained models.
+    """)
