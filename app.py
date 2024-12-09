@@ -56,7 +56,7 @@ def create_and_train_model(X_train, y_train):
 
     # Save the model
     model.save('trained_skin_cancer_model.keras')
-    st.success("Model trained and saved successfully!")
+    st.success("✅ Model trained and saved successfully!")
     return model
 
 
@@ -73,7 +73,7 @@ def preprocess_uploaded_image(image_file):
         mean_red = np.mean(image[:, :, 0])
         mean_green = np.mean(image[:, :, 1])
         mean_blue = np.mean(image[:, :, 2])
-        # Extract additional statistics (you can add custom feature logic here)
+        # Extract additional statistics
         image_features = np.array([mean_red, mean_green, mean_blue, np.mean(image)])  # Example: mean pixel values
         image_features = np.expand_dims(image_features, axis=0)  # Reshape for prediction
 
@@ -111,54 +111,67 @@ def run_prediction(image_file):
 
 
 # Sidebar Menu
-st.sidebar.title("Skin Cancer Prediction Dashboard")
+st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
+
+
+# Mapping indices to disease names
+DISEASE_MAPPING = {
+    0: "Melanoma",
+    1: "Basal Cell Carcinoma",
+    2: "Squamous Cell Carcinoma",
+    3: "Benign Lesion"
+}
 
 
 # Main Pages
 if app_mode == "Home":
-    st.header("🌿 Skin Cancer Detection Dashboard")
+    st.title("🌿 Skin Cancer Detection App")
     st.markdown("""
-    This system allows you to:
+    This web app allows you to:
     - Train a model with your own CSV dataset.
-    - Test your own image to check for skin cancer risk.
-    - Use a pre-trained model pipeline.
+    - Test your uploaded image to check for skin cancer risk.
+    - Use a pre-trained model for instant predictions.
     """)
 
 elif app_mode == "Train & Test Model":
-    st.header("Train & Test Model")
+    st.header("🛠 Train & Test Model")
     uploaded_file = st.file_uploader("Upload your CSV file for training", type=["csv"])
 
     if uploaded_file:
-        st.info("Dataset loaded successfully. Preparing for training...")
+        st.info("📊 Dataset loaded successfully. Preparing for training...")
         df = pd.read_csv(uploaded_file)
         st.write("Dataset Preview:", df.head())
 
         if st.button("Train Model"):
-            with st.spinner("Training model..."):
+            with st.spinner("🔄 Training model..."):
                 X_train, X_test, y_train, y_test, label_encoder = preprocess_data(df)
                 create_and_train_model(X_train, y_train)
 
 elif app_mode == "Prediction":
-    st.header("Make Predictions")
-    uploaded_image = st.file_uploader("Upload a skin image for prediction", type=["jpg", "png"])
+    st.header("🔮 Make Predictions")
+    uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
 
     if uploaded_image:
         st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
         if st.button("Run Prediction"):
-            with st.spinner("Running prediction..."):
+            with st.spinner("⏳ Running prediction..."):
                 predicted_idx, confidence = run_prediction(uploaded_image)
                 if predicted_idx is not None:
-                    st.success(f"Prediction Confidence: {confidence:.2f}")
-                    st.write(f"Predicted Class Index: {predicted_idx}")
+                    disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
+                    st.success(f"✅ Prediction Confidence: {confidence:.2f}")
+                    st.subheader(f"Predicted Disease: {disease_name}")
 
 elif app_mode == "About":
-    st.header("About")
+    st.header("📖 About This App")
     st.markdown("""
-    This web app uses machine learning techniques to predict skin cancer risk from dermoscopic image data.
-    Built with Streamlit & TensorFlow, this application allows model training, testing with custom image data, 
-    and leveraging machine learning models for inference.
+    This web application uses machine learning techniques to predict skin cancer risk from dermoscopic image data.
+    It was built using **Streamlit**, **TensorFlow**, and **Python**, and allows:
+    - Model training with your own labeled datasets.
+    - Testing using your uploaded image for prediction.
+    - Real-time predictions from trained models.
     """)
+
 
 
 
