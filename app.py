@@ -14,7 +14,7 @@ from PIL import Image
 def preprocess_data(df):
     """
     Preprocess data for training. Handles encoding and splits data.
-    Ensures the target variable (y) is one-hot encoded properly.
+    Dynamically determines the number of classes for classification.
     """
     # Label encoding target variable
     label_encoder = LabelEncoder()
@@ -27,6 +27,7 @@ def preprocess_data(df):
     # Prepare features and target
     X = df.drop(columns=['image_id', 'dx_type', 'dx'], errors='ignore')
     y = df['dx']  # Get raw target values
+    num_classes = len(df['dx'].unique())  # Dynamically determine number of classes
     y = pd.get_dummies(y).to_numpy()  # One-hot encode using pandas get_dummies
 
     # Handle remaining NaN values
@@ -40,13 +41,14 @@ def preprocess_data(df):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     # Debugging output
+    st.write("Number of classes determined:", num_classes)
     st.write("Shape of X_train:", X_train.shape)
     st.write("Shape of y_train:", y_train.shape)
 
-    return X_train, X_test, y_train, y_test, label_encoder
+    return X_train, X_test, y_train, y_test, num_classes, label_encoder
 
 
-def create_and_train_model(X_train, y_train, X_test, y_test):
+def create_and_train_model(X_train, y_train, X_test, y_test, num_classes):
     """
     Defines, compiles, and trains a basic model for classification with proper class handling.
     Handles class imbalance by computing class weights.
@@ -66,22 +68,19 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
     st.write("Class weights computed:", class_weights_dict)
     st.write("y_train shape:", y_train.shape)
 
-    # Define the model architecture
+    # Define the model architecture dynamically
     model = Sequential([
         Dense(64, activation="relu", input_shape=(X_train.shape[1],)),
         Dropout(0.5),
         Dense(32, activation="relu"),
-        Dense(4, activation="softmax")  # Adjusted for 4 output classes
+        Dense(num_classes, activation="softmax")  # Adjust number of output neurons dynamically
     ])
 
     # Compile the model
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
-    # Debugging: Ensure X_train, y_train are properly formatted
-    st.write("X_train shape:", X_train.shape)
-
+    # Train the model with class weights
     try:
-        # Train the model with class weights
         model.fit(
             X_train,
             y_train,
@@ -181,16 +180,7 @@ st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
 # Main Pages
-if app_mode == "Home":
-    st.title("🌿 Skin Cancer Detection App")
-    st.markdown("""
-    This web app allows you to:
-    - Train a model with your own CSV dataset.
-    - Test your uploaded image to check for skin cancer risk.
-    - Use a pre-trained model for instant predictions.
-    """)
-
-elif app_mode == "Train & Test Model":
+if app_mode == "Train & Test Model":
     st.header("🛠 Train & Test Model")
     uploaded_file = st.file_uploader("Upload your CSV file for training", type=["csv"])
 
@@ -201,24 +191,6 @@ elif app_mode == "Train & Test Model":
 
         if st.button("Train Model"):
             with st.spinner("🔄 Training model..."):
-                X_train, X_test, y_train, y_test, label_encoder = preprocess_data(df)
-                create_and_train_model(X_train, y_train, X_test, y_test)
+                X_train, X_test, y_train, y_test, num_classes, label_encoder = preprocess_data(df)
+                create_and_train_model(X_train, y_train, X_test, y_test, num_classes)
 
-elif app_mode == "Prediction":
-    st.header("🔮 Make Predictions")
-    uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
-
-    if uploaded_image:
-        st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
-        if st.button("Run Prediction"):
-            with st.spinner("⏳ Running prediction..."):
-                run_prediction(uploaded_image)
-
-elif app_mode == "About":
-    st.header("📖 About This App")
-    st.markdown("""
-    This web application uses machine learning techniques to predict skin cancer risk from dermoscopic image data.
-    It was built using *Streamlit, **TensorFlow, and **Python*.
-    - Model training with labeled datasets.
-    - Real-time predictions using pre-trained models.
-    """)
