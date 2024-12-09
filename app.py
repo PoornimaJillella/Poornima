@@ -18,7 +18,7 @@ feature_extractor = VGG16(weights='imagenet', include_top=False, pooling='avg')
 
 # TensorFlow Model Prediction (Model prediction using VGG16 embeddings)
 def model_prediction(test_image_path):
-    model = tf.keras.models.load_model("trained_skin_cancer_model.h5")
+    model = tf.keras.models.load_model("skin_model.keras")
     image = load_img(test_image_path, target_size=(128, 128))
     input_arr = img_to_array(image)  # Convert image to an array
     input_arr = np.expand_dims(input_arr, axis=0)  # Create batch dimension
