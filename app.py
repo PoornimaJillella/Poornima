@@ -1,146 +1,131 @@
-import os
 import streamlit as st
 import pandas as pd
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout, Conv2D, Flatten
+from tensorflow.keras.layers import Dense, Dropout
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-import matplotlib.pyplot as plt
-from tensorflow.keras.applications import VGG16
-from tensorflow.keras.preprocessing.image import img_to_array, load_img
+from PIL import Image
 
 
-# Load pre-trained VGG16 model for feature extraction
-feature_extractor = VGG16(weights='imagenet', include_top=False, pooling='avg')
-
-
-# TensorFlow Model Prediction (Model prediction using VGG16 embeddings)
-def model_prediction(test_image_path):
-    model = tf.keras.models.load_model("skin_model.keras")
-    image = load_img(test_image_path, target_size=(128, 128))
-    input_arr = img_to_array(image)  # Convert image to an array
-    input_arr = np.expand_dims(input_arr, axis=0)  # Create batch dimension
-    predictions = model.predict(input_arr)
-    predicted_index = np.argmax(predictions)
-    confidence = predictions[0][predicted_index]
-    return predicted_index, confidence
-
-
-# Function to preprocess image for feature extraction
-def extract_features(image_path):
-    image = load_img(image_path, target_size=(128, 128))
-    input_arr = img_to_array(image)
-    input_arr = np.expand_dims(input_arr, axis=0)  # Expand dimensions for batch compatibility
-    features = feature_extractor.predict(input_arr)
-    return features
-
-
-# Function to prepare the skin cancer dataset
-def prepare_data(df):
-    # Encode the target variable using Label Encoding
+# Helper Functions
+def preprocess_data(df):
+    """
+    Preprocess data for training. Handles encoding and splits data.
+    """
+    # Label encoding target variable
     label_encoder = LabelEncoder()
     df['dx'] = label_encoder.fit_transform(df['dx'])
+
+    # Handle missing data
+    if 'age' in df.columns:
+        df['age'].fillna(df['age'].mean(), inplace=True)
+
+    # Prepare features and target
+    X = df.drop(columns=['image_id', 'dx_type', 'dx'], errors='ignore')
     y = pd.get_dummies(df['dx']).to_numpy()
-    
-    # Extract image features from the CSV dataset
-    image_size = (128, 128)
-    # Simulate image features for training pipeline
-    X = np.random.rand(len(df), *image_size, 3)  # Simulate input features
-    
-    # Normalize features and split the data
+
+    # Handle remaining NaN values
+    X = X.apply(pd.to_numeric, errors='coerce').fillna(0)
+
+    # Normalize features
     scaler = tf.keras.layers.Rescaling(1.0 / 255)
     X = scaler(tf.constant(X)).numpy()
-    
-    # Split the dataset into train/test sets
+
+    # Split data
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    return X_train, X_test, y_train, y_test
+
+    return X_train, X_test, y_train, y_test, label_encoder
 
 
-# Model Definition
-def create_skin_cancer_model(X_train, y_train):
+def create_and_train_model(X_train, y_train):
+    """
+    Defines, compiles, and trains a basic model for classification.
+    Saves model after training.
+    """
     model = Sequential([
-        Conv2D(32, (3, 3), activation='relu', input_shape=(128, 128, 3)),
-        Flatten(),
-        Dense(64, activation='relu'),
-        Dropout(0.4),
-        Dense(y_train.shape[1], activation='softmax')
+        Dense(64, activation="relu", input_shape=(X_train.shape[1],)),
+        Dropout(0.5),
+        Dense(32, activation="relu"),
+        Dense(y_train.shape[1], activation="softmax")
     ])
 
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-    model.fit(X_train, y_train, epochs=10, verbose=2)
-    model.save("skin_model.keras")
+    model.fit(X_train, y_train, validation_split=0.2, epochs=10, batch_size=16, verbose=2)
+
+    # Save the model
+    model.save('trained_skin_cancer_model.keras')
+    st.success("Model trained and saved successfully!")
     return model
+
+
+def run_prediction(image_file):
+    """
+    Run prediction on an uploaded image.
+    """
+    model = tf.keras.models.load_model('trained_skin_cancer_model.keras')
+    
+    # Process the uploaded image
+    image = Image.open(image_file).resize((128, 128))
+    image = np.array(image) / 255.0  # Normalize image values
+    image = np.expand_dims(image, axis=0)  # Add batch dimension
+
+    # Predict
+    predictions = model.predict(image)
+    predicted_idx = np.argmax(predictions, axis=1)[0]
+    confidence = predictions[0][predicted_idx]
+
+    return predicted_idx, confidence
 
 
 # Sidebar Menu
 st.sidebar.title("Skin Cancer Prediction Dashboard")
-app_mode = st.sidebar.selectbox("Select Mode", ["Home", "About", "Train & Test Model", "Prediction"])
+app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
 
-# Main Page
+# Main Pages
 if app_mode == "Home":
     st.header("🌿 Skin Cancer Detection Dashboard")
-    image_path = "th.jpg"
-    st.image(image_path, use_column_width=True)  # Fixed indentation
     st.markdown("""
-    This system provides analysis of skin cancer prediction using advanced machine learning models.
-    - Upload a dataset to test model predictions.
-    - Train a model if needed or run predictions on your own images.
+    This system allows you to:
+    - Train a model with your own CSV dataset.
+    - Test your own image to check for skin cancer risk.
+    - Use a pre-trained model pipeline.
     """)
 
-
-
-# About Section
-elif app_mode == "About":
-    st.header("About the Dataset & Pipeline")
-    st.markdown("""
-    The system uses HAM10000 image classification features mapped for skin cancer detection using machine learning models.
-    This approach includes CNNs trained with real-world dermoscopic image data for accuracy.
-    """)
-
-
-# Train & Test Model
 elif app_mode == "Train & Test Model":
-    st.header("Model Training with Provided Dataset")
-    uploaded_file = st.file_uploader("Upload CSV Dataset")
-    
+    st.header("Train & Test Model")
+    uploaded_file = st.file_uploader("Upload your CSV file for training", type=["csv"])
+
     if uploaded_file:
-        st.info("Dataset uploaded successfully. Preparing data...")
+        st.info("Dataset loaded successfully. Preparing for training...")
         df = pd.read_csv(uploaded_file)
-        st.write("Dataset preview loaded:")
-        st.dataframe(df.head())
+        st.write("Dataset Preview:", df.head())
 
         if st.button("Train Model"):
             with st.spinner("Training model..."):
-                X_train, X_test, y_train, y_test = prepare_data(df)
+                X_train, X_test, y_train, y_test, label_encoder = preprocess_data(df)
+                create_and_train_model(X_train, y_train)
 
-                # Train model with dummy data & CNNs
-                model = create_skin_cancer_model(X_train, y_train)
-
-                st.success("Model trained and saved successfully.")
-                st.write("Model training complete.")
-
-
-# Prediction Section
 elif app_mode == "Prediction":
-    st.header("Run Prediction")
-    uploaded_image = st.file_uploader("Upload your image for testing")
-    
+    st.header("Make Predictions")
+    uploaded_image = st.file_uploader("Upload a skin image for prediction", type=["jpg", "png"])
+
     if uploaded_image:
         st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
-
         if st.button("Run Prediction"):
-            with st.spinner('Analyzing the image...'):
-                # Save test image temporarily
-                with open("test_image.jpg", "wb") as f:
-                    f.write(uploaded_image.getvalue())
-                
-                # Run prediction
-                predicted_idx, confidence = model_prediction("test_image.jpg")
-                
-                if confidence >= 0.7:
-                    st.success(f"Prediction successful! Confidence: {confidence:.2f}")
-                else:
-                    st.warning(f"Low confidence: {confidence:.2f}. Model unsure.")
+            with st.spinner("Running prediction..."):
+                predicted_idx, confidence = run_prediction(uploaded_image)
+                st.success(f"Prediction Confidence: {confidence:.2f}")
+                st.write(f"Predicted Index: {predicted_idx}")
+
+elif app_mode == "About":
+    st.header("About")
+    st.markdown("""
+    This web app uses machine learning techniques to predict skin cancer risk from dermoscopic image data.
+    Built with Streamlit & TensorFlow, this application allows model training, testing with custom image data, 
+    and leveraging machine learning models for inference.
+    """)
+
+
