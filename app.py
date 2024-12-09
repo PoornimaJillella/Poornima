@@ -8,6 +8,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import class_weight
 from PIL import Image
+import os
 
 
 # Helper Functions
@@ -48,7 +49,7 @@ def preprocess_data(df):
     return X_train, X_test, y_train, y_test, num_classes, label_encoder
 
 
-def create_and_train_model(X_train, y_train, X_test, y_test, num_classes):
+def create_and_train_model(X_train, y_train, X_test, y_test, num_classes, model_name):
     """
     Defines, compiles, and trains a basic model for classification with proper class handling.
     Handles class imbalance by computing class weights.
@@ -95,9 +96,9 @@ def create_and_train_model(X_train, y_train, X_test, y_test, num_classes):
         print(e)
         return None
 
-    # Save the model
-    model.save('trained_skin_cancer_model.keras')
-    st.success("✅ Model trained and saved successfully!")
+    # Save the model with a dynamic name
+    model.save(model_name)
+    st.success(f"✅ Model trained and saved as '{model_name}' successfully!")
 
     # Evaluate the model
     loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
@@ -143,32 +144,30 @@ DISEASE_MAPPING = {
 }
 
 
-def run_prediction(image_file):
+def run_prediction(model_name, image_file):
     """
-    Run prediction on an uploaded image after preprocessing it into expected numerical features.
+    Run prediction on an uploaded image using the dynamically saved model's filename.
     """
-    # Load the trained model
-    model = tf.keras.models.load_model('trained_skin_cancer_model.keras')
+    # Load the trained model dynamically
+    try:
+        model = tf.keras.models.load_model(model_name)
 
-    # Preprocess the uploaded image into features expected by the model
-    features = preprocess_uploaded_image(image_file)
+        # Preprocess the uploaded image into features expected by the model
+        features = preprocess_uploaded_image(image_file)
 
-    if features is not None:
-        try:
-            # Predict using the features
+        if features is not None:
             predictions = model.predict(features)
             predicted_idx = np.argmax(predictions, axis=1)[0]
             confidence = predictions[0][predicted_idx]
 
-            # Map prediction index back to a disease name
             disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
-
             st.success(f"✅ Prediction Confidence: {confidence:.2%}")
             st.subheader(f"Predicted Disease: {disease_name}")
-        except Exception as e:
-            st.error(f"Error during model prediction: {e}")
-    else:
-        st.error("Failed to process the uploaded image.")
+        else:
+            st.error("Failed to process the uploaded image.")
+    except Exception as e:
+        st.error(f"Error loading or predicting with the model: {e}")
+        print(e)
 
 
 # Sidebar Menu
@@ -176,16 +175,7 @@ st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
 # Main Pages
-if app_mode == "Home":
-    st.title("🌿 Skin Cancer Detection App")
-    st.markdown("""
-    This web app allows you to:
-    - Train a model with your own CSV dataset.
-    - Test your uploaded image to check for skin cancer risk.
-    - Use a pre-trained model for instant predictions.
-    """)
-
-elif app_mode == "Train & Test Model":
+if app_mode == "Train & Test Model":
     st.header("🛠 Train & Test Model")
     uploaded_file = st.file_uploader("Upload your CSV file for training", type=["csv"])
 
@@ -197,28 +187,20 @@ elif app_mode == "Train & Test Model":
         if st.button("Train Model"):
             with st.spinner("🔄 Training model..."):
                 X_train, X_test, y_train, y_test, num_classes, label_encoder = preprocess_data(df)
-                create_and_train_model(X_train, y_train, X_test, y_test, num_classes)
+                model_name = f"model_{uploaded_file.name.split('.')[0]}.keras"  # Save with the uploaded filename
+                create_and_train_model(X_train, y_train, X_test, y_test, num_classes, model_name)
 
 elif app_mode == "Prediction":
     st.header("🔮 Make Predictions")
     uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
+    uploaded_model_file = st.text_input("Enter Model Filename", value="")  # Allow user to input model name
 
-    if uploaded_image:
+    if uploaded_image and uploaded_model_file:
         st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
         if st.button("Run Prediction"):
             with st.spinner("⏳ Running prediction..."):
-                run_prediction(uploaded_image)
+                run_prediction(uploaded_model_file, uploaded_image)
 
-elif app_mode == "About":
-    st.header("📖 About This App")
-    st.markdown("""
-    This web application uses machine learning techniques to predict skin cancer risk from dermoscopic image data.
-    It was built using *Streamlit, TensorFlow, and Python*.
-    Features include:
-    - Model training with uploaded datasets.
-    - Predictions based on uploaded images.
-    - Insights into classification results.
-    """)
 
 
 
