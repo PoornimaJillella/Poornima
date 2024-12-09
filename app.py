@@ -60,29 +60,53 @@ def create_and_train_model(X_train, y_train):
     return model
 
 
+def preprocess_uploaded_image(image_file):
+    """
+    Preprocess the uploaded image into numerical features expected by the model.
+    """
+    try:
+        # Open the image and resize
+        image = Image.open(image_file).convert('RGB').resize((128, 128))  # Resize image
+        image = np.array(image) / 255.0  # Normalize pixel values to 0-1
+
+        # Extract numerical features: compute mean pixel intensity across each channel (R, G, B)
+        mean_red = np.mean(image[:, :, 0])
+        mean_green = np.mean(image[:, :, 1])
+        mean_blue = np.mean(image[:, :, 2])
+        # Extract additional statistics (you can add custom feature logic here)
+        image_features = np.array([mean_red, mean_green, mean_blue, np.mean(image)])  # Example: mean pixel values
+        image_features = np.expand_dims(image_features, axis=0)  # Reshape for prediction
+
+        return image_features
+    except Exception as e:
+        st.error(f"Error processing the image: {e}")
+        print(e)
+        return None
+
+
 def run_prediction(image_file):
     """
-    Run prediction on an uploaded image.
+    Run prediction on an uploaded image after preprocessing it into expected numerical features.
     """
     # Load the trained model
     model = tf.keras.models.load_model('trained_skin_cancer_model.keras')
 
-    # Process the uploaded image
-    try:
-        # Resize and normalize the image
-        image = Image.open(image_file).convert('RGB').resize((128, 128))  # Resize to match model's expected input
-        image = np.array(image) / 255.0  # Normalize pixel values between 0 and 1
-        image = np.expand_dims(image, axis=0)  # Add batch dimension
+    # Preprocess the uploaded image into features expected by the model
+    features = preprocess_uploaded_image(image_file)
 
-        # Predict
-        predictions = model.predict(image)
-        predicted_idx = np.argmax(predictions, axis=1)[0]
-        confidence = predictions[0][predicted_idx]
+    if features is not None:
+        try:
+            # Predict using the features
+            predictions = model.predict(features)
+            predicted_idx = np.argmax(predictions, axis=1)[0]
+            confidence = predictions[0][predicted_idx]
 
-        return predicted_idx, confidence
-    except Exception as e:
-        st.error(f"Error during prediction: {e}")
-        print(e)
+            return predicted_idx, confidence
+        except Exception as e:
+            st.error(f"Error during model prediction: {e}")
+            print(e)
+            return None, None
+    else:
         return None, None
 
 
@@ -135,6 +159,7 @@ elif app_mode == "About":
     Built with Streamlit & TensorFlow, this application allows model training, testing with custom image data, 
     and leveraging machine learning models for inference.
     """)
+
 
 
 
