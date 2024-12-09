@@ -14,6 +14,7 @@ from PIL import Image
 def preprocess_data(df):
     """
     Preprocess data for training. Handles encoding and splits data.
+    Ensures the target variable (y) is one-hot encoded properly.
     """
     # Label encoding target variable
     label_encoder = LabelEncoder()
@@ -25,7 +26,8 @@ def preprocess_data(df):
 
     # Prepare features and target
     X = df.drop(columns=['image_id', 'dx_type', 'dx'], errors='ignore')
-    y = pd.get_dummies(df['dx']).to_numpy()
+    y = df['dx']  # Get raw target values
+    y = pd.get_dummies(y).to_numpy()  # One-hot encode using pandas get_dummies
 
     # Handle remaining NaN values
     X = X.apply(pd.to_numeric, errors='coerce').fillna(0)
@@ -36,6 +38,10 @@ def preprocess_data(df):
 
     # Split data
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    # Debugging output
+    st.write("Shape of X_train:", X_train.shape)
+    st.write("Shape of y_train:", y_train.shape)
 
     return X_train, X_test, y_train, y_test, label_encoder
 
@@ -58,28 +64,37 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
 
     # Debugging output
     st.write("Class weights computed:", class_weights_dict)
+    st.write("y_train shape:", y_train.shape)
 
     # Define the model architecture
     model = Sequential([
         Dense(64, activation="relu", input_shape=(X_train.shape[1],)),
         Dropout(0.5),
         Dense(32, activation="relu"),
-        Dense(4, activation="softmax")  # 4 classes for multi-class classification
+        Dense(4, activation="softmax")  # Adjusted for 4 output classes
     ])
 
     # Compile the model
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
-    # Train the model with class weights
-    model.fit(
-        X_train,
-        y_train,
-        validation_split=0.2,
-        epochs=10,
-        batch_size=16,
-        class_weight=class_weights_dict,
-        verbose=2
-    )
+    # Debugging: Ensure X_train, y_train are properly formatted
+    st.write("X_train shape:", X_train.shape)
+
+    try:
+        # Train the model with class weights
+        model.fit(
+            X_train,
+            y_train,
+            validation_split=0.2,
+            epochs=10,
+            batch_size=16,
+            class_weight=class_weights_dict,
+            verbose=2
+        )
+    except Exception as e:
+        st.error(f"Error during training: {e}")
+        print(e)
+        return None
 
     # Save the model
     model.save('trained_skin_cancer_model.keras')
@@ -165,7 +180,6 @@ def run_prediction(image_file):
 st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
-
 # Main Pages
 if app_mode == "Home":
     st.title("🌿 Skin Cancer Detection App")
@@ -204,16 +218,7 @@ elif app_mode == "About":
     st.header("📖 About This App")
     st.markdown("""
     This web application uses machine learning techniques to predict skin cancer risk from dermoscopic image data.
-    It was built using *Streamlit, **TensorFlow, and **Python*, and allows:
-    - Model training with your own labeled datasets.
-    - Testing using your uploaded image for prediction.
-    - Real-time predictions from trained models.
+    It was built using *Streamlit, **TensorFlow, and **Python*.
+    - Model training with labeled datasets.
+    - Real-time predictions using pre-trained models.
     """)
-
-
-
-
-
-
-
-
