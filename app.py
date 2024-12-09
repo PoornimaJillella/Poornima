@@ -206,13 +206,7 @@ elif app_mode == "About":
     - Testing using your uploaded image for prediction.
     - Real-time predictions from trained models.
     """)
-anki final code....
-anni detect aithunnai
-Haa vachesinda
-Nenu try chestunna ra web application
-Hod vaste adgtadu
-huu
-okk
+
 
 
 
