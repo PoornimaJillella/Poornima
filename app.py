@@ -43,16 +43,21 @@ def preprocess_data(df):
 def create_and_train_model(X_train, y_train, X_test, y_test):
     """
     Defines, compiles, and trains a basic model for classification.
+    Handles class imbalance by computing class weights.
     Saves model after training.
     """
-    # Compute class weights to handle class imbalance
+    # Decode class indices properly
+    y_train_indices = np.argmax(y_train, axis=1)  # Ensure indices are extracted properly
     class_weights = class_weight.compute_class_weight(
-        'balanced',
-        np.unique(y_train.argmax(axis=1)),  # Assuming y_train is one-hot encoded
-        y_train.argmax(axis=1)
+        class_weight='balanced',
+        classes=np.unique(y_train_indices),
+        y=y_train_indices
     )
 
     class_weights_dict = {i: class_weights[i] for i in range(len(class_weights))}
+
+    # Debugging output
+    st.write("Class weights computed:", class_weights_dict)
 
     # Define the model architecture
     model = Sequential([
@@ -190,6 +195,7 @@ elif app_mode == "About":
     - Testing using your uploaded image for prediction.
     - Real-time predictions from trained models.
     """)
+
 
 
 
