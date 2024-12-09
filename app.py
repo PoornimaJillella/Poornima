@@ -95,13 +95,24 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
 def preprocess_uploaded_image(image_file):
     """
     Preprocess the uploaded image into numerical features expected by the model.
+    This function computes the mean of R, G, B values and a general mean pixel intensity.
     """
     try:
         # Open the image and resize
-        image = Image.open(image_file).convert('RGB').resize((128, 128))  # Resize image
+        image = Image.open(image_file).convert('RGB').resize((128, 128))  # Resize to expected input dimensions
         image = np.array(image) / 255.0  # Normalize pixel values to 0-1
-        image = np.expand_dims(image, axis=0)  # Reshape for batch input
-        return image
+        
+        # Calculate mean pixel intensities as features
+        mean_red = np.mean(image[:, :, 0])
+        mean_green = np.mean(image[:, :, 1])
+        mean_blue = np.mean(image[:, :, 2])
+        mean_intensity = np.mean(image)  # General mean pixel intensity
+        
+        # Create feature array with 4 numerical values
+        image_features = np.array([mean_red, mean_green, mean_blue, mean_intensity])
+        image_features = np.expand_dims(image_features, axis=0)  # Reshape for prediction
+
+        return image_features
     except Exception as e:
         st.error(f"Error processing the image: {e}")
         print(e)
@@ -195,6 +206,7 @@ elif app_mode == "About":
     - Testing using your uploaded image for prediction.
     - Real-time predictions from trained models.
     """)
+
 
 
 
