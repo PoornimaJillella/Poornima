@@ -171,3 +171,4 @@ elif app_mode == "About":
     - Testing using your uploaded image for prediction.
     - Real-time predictions from trained models.
     """)
+
