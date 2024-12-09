@@ -165,14 +165,10 @@ def run_prediction(image_file):
 
             st.success(f"✅ Prediction Confidence: {confidence:.2%}")
             st.subheader(f"Predicted Disease: {disease_name}")
-            return predicted_idx, confidence
         except Exception as e:
             st.error(f"Error during model prediction: {e}")
-            print(e)
-            return None, None
     else:
         st.error("Failed to process the uploaded image.")
-        return None, None
 
 
 # Sidebar Menu
@@ -180,7 +176,16 @@ st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
 # Main Pages
-if app_mode == "Train & Test Model":
+if app_mode == "Home":
+    st.title("🌿 Skin Cancer Detection App")
+    st.markdown("""
+    This web app allows you to:
+    - Train a model with your own CSV dataset.
+    - Test your uploaded image to check for skin cancer risk.
+    - Use a pre-trained model for instant predictions.
+    """)
+
+elif app_mode == "Train & Test Model":
     st.header("🛠 Train & Test Model")
     uploaded_file = st.file_uploader("Upload your CSV file for training", type=["csv"])
 
@@ -193,5 +198,27 @@ if app_mode == "Train & Test Model":
             with st.spinner("🔄 Training model..."):
                 X_train, X_test, y_train, y_test, num_classes, label_encoder = preprocess_data(df)
                 create_and_train_model(X_train, y_train, X_test, y_test, num_classes)
+
+elif app_mode == "Prediction":
+    st.header("🔮 Make Predictions")
+    uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
+
+    if uploaded_image:
+        st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
+        if st.button("Run Prediction"):
+            with st.spinner("⏳ Running prediction..."):
+                run_prediction(uploaded_image)
+
+elif app_mode == "About":
+    st.header("📖 About This App")
+    st.markdown("""
+    This web application uses machine learning techniques to predict skin cancer risk from dermoscopic image data.
+    It was built using *Streamlit, TensorFlow, and Python*.
+    Features include:
+    - Model training with uploaded datasets.
+    - Predictions based on uploaded images.
+    - Insights into classification results.
+    """)
+
 
 
