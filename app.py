@@ -8,6 +8,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import class_weight
 from PIL import Image
+import os
 
 
 # Helper Functions
@@ -94,7 +95,7 @@ def create_and_train_model(X_train, y_train, X_test, y_test, num_classes, model_
         print(e)
         return None
 
-    # Save the model with name derived from CSV
+    # Save the model with a name derived from the uploaded dataset
     model.save(model_name)
     st.success(f"✅ Model trained and saved as '{model_name}' successfully!")
 
@@ -136,28 +137,48 @@ DISEASE_MAPPING = {
 }
 
 
-def run_prediction(model_name, image_file):
+def get_latest_model():
     """
-    Dynamically loads the saved model corresponding to the uploaded name for prediction.
+    Dynamically loads the most recently saved model in the working directory.
     """
-    try:
-        # Load the model dynamically
-        model = tf.keras.models.load_model(model_name)
-        features = preprocess_uploaded_image(image_file)
+    model_files = [f for f in os.listdir('.') if f.startswith("model_") and f.endswith(".keras")]
 
-        if features is not None:
-            predictions = model.predict(features)
-            predicted_idx = np.argmax(predictions, axis=1)[0]
-            confidence = predictions[0][predicted_idx]
+    if not model_files:
+        st.error("No saved models found. Train a model first.")
+        return None
 
-            # Map index to disease name
-            disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
-            st.success(f"✅ Prediction Confidence: {confidence:.2%}")
-            st.subheader(f"Predicted Disease: {disease_name}")
-        else:
-            st.error("Failed to preprocess image data.")
-    except Exception as e:
-        st.error(f"Error loading model or predicting: {e}")
+    # Sort files to get the latest model saved
+    latest_model = sorted(model_files)[-1]
+    st.write("Loaded model:", latest_model)
+
+    return latest_model
+
+
+def run_prediction(image_file):
+    """
+    Dynamically loads the latest model and runs predictions on the uploaded image.
+    """
+    model_name = get_latest_model()
+    if model_name:
+        try:
+            # Load the model dynamically
+            model = tf.keras.models.load_model(model_name)
+
+            # Preprocess uploaded image
+            features = preprocess_uploaded_image(image_file)
+
+            if features is not None:
+                predictions = model.predict(features)
+                predicted_idx = np.argmax(predictions, axis=1)[0]
+                confidence = predictions[0][predicted_idx]
+
+                disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
+                st.success(f"✅ Prediction Confidence: {confidence:.2%}")
+                st.subheader(f"Predicted Disease: {disease_name}")
+            else:
+                st.error("Failed to preprocess image data.")
+        except Exception as e:
+            st.error(f"Error loading model or predicting: {e}")
 
 
 # Sidebar Menu
@@ -179,11 +200,11 @@ if app_mode == "Train & Test Model":
 elif app_mode == "Prediction":
     st.header("🔮 Prediction")
     uploaded_image = st.file_uploader("Upload Image for Prediction", type=["jpg", "png"])
-    model_name = st.text_input("Enter trained model name (e.g., 'model_dataset')")
 
-    if uploaded_image and model_name:
+    if uploaded_image:
         if st.button("Run Prediction"):
-            run_prediction(f"{model_name}.keras", uploaded_image)
+            run_prediction(uploaded_image)
+
 
 
 
