@@ -43,20 +43,25 @@ def preprocess_data(df):
 def create_and_train_model(X_train, y_train, X_test, y_test):
     """
     Defines, compiles, and trains a basic model for classification.
+    Handles class imbalance by computing class weights.
     Saves model after training.
     """
-    # Compute class weights to handle class imbalance
+    # Decode class indices properly
+    y_train_indices = np.argmax(y_train, axis=1)  # Ensure indices are extracted properly
     class_weights = class_weight.compute_class_weight(
-        'balanced',
-        np.unique(y_train.argmax(axis=1)),  # Assuming y_train is one-hot encoded
-        y_train.argmax(axis=1)
+        class_weight='balanced',
+        classes=np.unique(y_train_indices),
+        y=y_train_indices
     )
 
     class_weights_dict = {i: class_weights[i] for i in range(len(class_weights))}
 
+    # Debugging output
+    st.write("Class weights computed:", class_weights_dict)
+
     # Define the model architecture
     model = Sequential([
-        Dense(64, activation="relu", input_shape=(X_train.shape[1],)),
+        Dense(64, activation="relu", input_shape=(4,)),  # Adjust input shape to 4 features
         Dropout(0.5),
         Dense(32, activation="relu"),
         Dense(y_train.shape[1], activation="softmax")  # Adjust number of output neurons to match number of classes
@@ -90,15 +95,28 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
 def preprocess_uploaded_image(image_file):
     """
     Preprocess the uploaded image into numerical features expected by the model.
+    This function computes the mean of R, G, B values and a general mean pixel intensity.
+    Returns only 4 computed features (matching the model's input).
     """
     try:
-        # Open the image and resize
-        image = Image.open(image_file).convert('RGB').resize((128, 128))  # Resize image
-        image = np.array(image) / 255.0  # Normalize pixel values to 0-1
-        image = np.expand_dims(image, axis=0)  # Reshape for batch input
-        return image
+        # Open and resize the image
+        image = Image.open(image_file).convert('RGB').resize((128, 128))
+        image = np.array(image) / 255.0  # Normalize values
+
+        # Extract features: mean pixel values
+        mean_red = np.mean(image[:, :, 0])
+        mean_green = np.mean(image[:, :, 1])
+        mean_blue = np.mean(image[:, :, 2])
+        mean_intensity = np.mean(image)
+
+        # Return as feature array with 4 numbers
+        image_features = np.array([mean_red, mean_green, mean_blue, mean_intensity])
+        image_features = image_features.reshape(1, 4)  # Reshape for model input
+
+        st.write("Extracted features:", image_features)  # Debugging
+        return image_features
     except Exception as e:
-        st.error(f"Error processing the image: {e}")
+        st.error(f"Error processing image: {e}")
         print(e)
         return None
 
@@ -133,8 +151,7 @@ def run_prediction(image_file):
 st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
-
-# Mapping indices to disease names
+# Disease index mapping
 DISEASE_MAPPING = {
     0: "Melanoma",
     1: "Basal Cell Carcinoma",
@@ -142,35 +159,10 @@ DISEASE_MAPPING = {
     3: "Benign Lesion"
 }
 
-
 # Main Pages
-if app_mode == "Home":
-    st.title("🌿 Skin Cancer Detection App")
-    st.markdown("""
-    This web app allows you to:
-    - Train a model with your own CSV dataset.
-    - Test your uploaded image to check for skin cancer risk.
-    - Use a pre-trained model for instant predictions.
-    """)
-
-elif app_mode == "Train & Test Model":
-    st.header("🛠 Train & Test Model")
-    uploaded_file = st.file_uploader("Upload your CSV file for training", type=["csv"])
-
-    if uploaded_file:
-        st.info("📊 Dataset loaded successfully. Preparing for training...")
-        df = pd.read_csv(uploaded_file)
-        st.write("Dataset Preview:", df.head())
-
-        if st.button("Train Model"):
-            with st.spinner("🔄 Training model..."):
-                X_train, X_test, y_train, y_test, label_encoder = preprocess_data(df)
-                create_and_train_model(X_train, y_train, X_test, y_test)
-
-elif app_mode == "Prediction":
+if app_mode == "Prediction":
     st.header("🔮 Make Predictions")
     uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
-
     if uploaded_image:
         st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
         if st.button("Run Prediction"):
@@ -178,15 +170,6 @@ elif app_mode == "Prediction":
                 predicted_idx, confidence = run_prediction(uploaded_image)
                 if predicted_idx is not None:
                     disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
-                    st.success(f"✅ Prediction Confidence: {confidence:.2f}")
+                    st.success(f"✅ Confidence: {confidence:.2f}")
                     st.subheader(f"Predicted Disease: {disease_name}")
 
-elif app_mode == "About":
-    st.header("📖 About This App")
-    st.markdown("""
-    This web application uses machine learning techniques to predict skin cancer risk from dermoscopic image data.
-    It was built using *Streamlit, **TensorFlow, and **Python*, and allows:
-    - Model training with your own labeled datasets.
-    - Testing using your uploaded image for prediction.
-    - Real-time predictions from trained models.
-    """)
