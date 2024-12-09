@@ -26,7 +26,7 @@ def preprocess_data(df):
         df['age'].fillna(df['age'].mean(), inplace=True)
 
     # Prepare features and target
-    X = df.drop(columns=['image_id', 'dx_type', 'dx'], errors='ignore')  # Fixed syntax issue here
+    X = df.drop(columns=['image_id', 'dx_type', 'dx'], errors='ignore')
     y = pd.get_dummies(df['dx']).to_numpy()
 
     # Handle remaining NaN values
@@ -137,62 +137,78 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
     return model
 
 
-# Home Page
+def preprocess_uploaded_image(image_file):
+    """
+    Preprocess the uploaded image into numerical features expected by the model.
+    This function computes the mean of R, G, B values and a general mean pixel intensity.
+    """
+    try:
+        # Open the image and resize
+        image = Image.open(image_file).convert('RGB').resize((128, 128))  # Resize to expected input dimensions
+        image = np.array(image) / 255.0  # Normalize pixel values to 0-1
+
+        # Create feature array
+        mean_red = np.mean(image[:, :, 0])
+        mean_green = np.mean(image[:, :, 1])
+        mean_blue = np.mean(image[:, :, 2])
+        mean_intensity = np.mean(image)
+
+        # Create feature array with numerical values
+        image_features = np.array([mean_red, mean_green, mean_blue, mean_intensity])
+        image_features = np.expand_dims(image_features, axis=0)  # Reshape for prediction
+
+        return image_features
+    except Exception as e:
+        st.error(f"Error processing the image: {e}")
+        return None
+
+
+def run_prediction(image_file):
+    """
+    Run prediction on uploaded image
+    """
+    try:
+        # Load the trained model
+        model = tf.keras.models.load_model('trained_skin_cancer_model.keras')
+        features = preprocess_uploaded_image(image_file)
+
+        if features is not None:
+            # Predict using the features
+            predictions = model.predict(features)
+            predicted_idx = np.argmax(predictions, axis=1)[0]
+            confidence = predictions[0][predicted_idx]
+
+            return predicted_idx, confidence
+        else:
+            st.error("Failed to process image for prediction.")
+            return None, None
+    except Exception as e:
+        st.error(f"Error during model prediction: {e}")
+        return None, None
+
+
+# Sidebar Menu
 st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
 # Main Pages
-if app_mode == "Home":
-    st.title("🌿 Skin Cancer Detection App")
-    st.markdown("""
-    **Welcome to the Skin Cancer Detection App!** 🚀
-    This application provides machine learning-based predictions for skin cancer classification.
-    - **Train Model**: Upload your own CSV data for training.
-    - **Test & Predict**: Use uploaded images to make instant predictions.
-    - **Model Visualization**: Explore confusion matrices and model insights.
-    """)
-
-    st.markdown("---")
-    st.subheader("How to Use:")
-    st.write("""
-    1. **Train & Test Your Model**:
-        Upload a dataset and train your own skin cancer detection model.
-    2. **Prediction**:
-        Upload dermoscopic images for real-time classification predictions.
-    3. **Explore Insights**:
-        Analyze model metrics and confusion matrices to identify performance gaps.
-    """)
-
-elif app_mode == "Train & Test Model":
-    st.header("🛠 Train & Test Model")
-    uploaded_file = st.file_uploader("Upload your CSV file for training", type=["csv"])
-
-    if uploaded_file:
-        st.info("📊 Dataset loaded successfully. Preparing for training...")
-        df = pd.read_csv(uploaded_file)
-        st.write("Dataset Preview:", df.head())
-
-        if st.button("Train Model"):
-            with st.spinner("🔄 Training model..."):
-                X_train, X_test, y_train, y_test, label_encoder = preprocess_data(df)
-                create_and_train_model(X_train, y_train, X_test, y_test)
-
-elif app_mode == "Prediction":
+if app_mode == "Prediction":
     st.header("🔮 Prediction Mode")
     uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
 
     if uploaded_image:
         st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
+        if st.button("Run Prediction"):
+            with st.spinner("Running prediction..."):
+                predicted_idx, confidence = run_prediction(uploaded_image)
+                if predicted_idx is not None:
+                    st.success(f"✅ Prediction Confidence: {confidence:.2f}")
+                    disease_name = {0: "Melanoma", 1: "Basal Cell Carcinoma", 2: "Squamous Cell Carcinoma", 3: "Benign Lesion"}.get(predicted_idx, "Unknown Disease")
+                    st.subheader(f"Predicted Disease: {disease_name}")
 
 else:
-    st.header("📖 About This Application")
-    st.write("""
-    This application was built to provide:
-    - Model training with uploaded datasets.
-    - Instant predictions on uploaded dermoscopic images.
-    - Insights about machine learning model performance.
-    Built using **Streamlit, TensorFlow, and Python**.
-    """)
+    st.error("Prediction Model not loaded or incomplete implementation.")
+
 
 
 
