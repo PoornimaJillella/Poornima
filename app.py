@@ -11,70 +11,30 @@ from PIL import Image
 
 
 # Helper Functions
-def extract_features_from_image(image_path):
-    """
-    Extract simple features from image. Modify this function to compute actual meaningful features.
-    For simplicity, this function uses average pixel intensity features.
-    """
-    try:
-        # Open the image and resize
-        image = Image.open(image_path).convert('RGB').resize((128, 128))
-        image = np.array(image) / 255.0  # Normalize pixel values
-        
-        # Calculate statistical features
-        mean_red = np.mean(image[:, :, 0])
-        mean_green = np.mean(image[:, :, 1])
-        mean_blue = np.mean(image[:, :, 2])
-        mean_intensity = np.mean(image)
-
-        # Return feature vector
-        return [mean_red, mean_green, mean_blue, mean_intensity]
-    except Exception as e:
-        st.error(f"Error processing image: {e}")
-        return None
-
-
 def preprocess_data(df):
     """
-    Preprocess uploaded CSV data for model training.
-    Extract features and split data.
+    Preprocess data for training. Handles encoding and splits data.
     """
-    # Debugging: View column names in the uploaded CSV
-    st.write("Column names in uploaded CSV:", df.columns)
-
-    # Label encoding the target variable
+    # Label encoding target variable
     label_encoder = LabelEncoder()
     df['dx'] = label_encoder.fit_transform(df['dx'])
 
-    # Dynamically look for the first column related to images
-    image_column = None
-    for col in df.columns:
-        if 'image' in col.lower():
-            image_column = col
-            break
+    # Handle missing data
+    if 'age' in df.columns:
+        df['age'].fillna(df['age'].mean(), inplace=True)
 
-    if not image_column:
-        st.error("Could not find a column with image paths in the uploaded CSV. Make sure your CSV has an image path column.")
-        return None, None, None, None, None
-
-    st.write(f"Using column '{image_column}' for image paths.")
-
-    # Preprocess image paths to extract features
-    features = []
-    for index, row in df.iterrows():
-        feature_set = extract_features_from_image(row[image_column])  # Extract image statistics
-        if feature_set:
-            features.append(feature_set)
-        else:
-            st.error(f"Could not process image at index {index}: {row[image_column]}")
-
-    X = np.array(features)
+    # Prepare features and target
+    X = df.drop(columns=['image_id', 'dx_type', 'dx'], errors='ignore')
     y = pd.get_dummies(df['dx']).to_numpy()
 
-    # Handle missing values
-    X = np.nan_to_num(X)  # Replace NaNs with zeros
+    # Handle remaining NaN values
+    X = X.apply(pd.to_numeric, errors='coerce').fillna(0)
 
-    # Split data into train/test sets
+    # Normalize features
+    scaler = tf.keras.layers.Rescaling(1.0 / 255)
+    X = scaler(tf.constant(X)).numpy()
+
+    # Split data
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     return X_train, X_test, y_train, y_test, label_encoder
@@ -159,6 +119,32 @@ def preprocess_uploaded_image(image_file):
         return None
 
 
+def run_prediction(image_file):
+    """
+    Run prediction on an uploaded image after preprocessing it into expected numerical features.
+    """
+    # Load the trained model
+    model = tf.keras.models.load_model('trained_skin_cancer_model.keras')
+
+    # Preprocess the uploaded image into features expected by the model
+    features = preprocess_uploaded_image(image_file)
+
+    if features is not None:
+        try:
+            # Predict using the features
+            predictions = model.predict(features)
+            predicted_idx = np.argmax(predictions, axis=1)[0]
+            confidence = predictions[0][predicted_idx]
+
+            return predicted_idx, confidence
+        except Exception as e:
+            st.error(f"Error during model prediction: {e}")
+            print(e)
+            return None, None
+    else:
+        return None, None
+
+
 # Sidebar Menu
 st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
@@ -194,15 +180,28 @@ elif app_mode == "Train & Test Model":
 
         if st.button("Train Model"):
             with st.spinner("🔄 Training model..."):
-                X_train, X_test, y_train, y_test, le = preprocess_data(df)
-                if X_train is not None:
-                    create_and_train_model(X_train, y_train, X_test, y_test)
+                X_train, X_test, y_train, y_test, label_encoder = preprocess_data(df)
+                create_and_train_model(X_train, y_train, X_test, y_test)
+
+elif app_mode == "Prediction":
+    st.header("🔮 Make Predictions")
+    uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
+
+    if uploaded_image:
+        st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
+        if st.button("Run Prediction"):
+            with st.spinner("⏳ Running prediction..."):
+                predicted_idx, confidence = run_prediction(uploaded_image)
+                if predicted_idx is not None:
+                    disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
+                    st.success(f"✅ Prediction Confidence: {confidence:.2f}")
+                    st.subheader(f"Predicted Disease: {disease_name}")
 
 elif app_mode == "About":
     st.header("📖 About This App")
     st.markdown("""
     This web application uses machine learning techniques to predict skin cancer risk from dermoscopic image data.
-    It allows:
+    It was built using Streamlit, **TensorFlow, and **Python, and allows:
     - Model training with your own labeled datasets.
     - Testing using your uploaded image for prediction.
     - Real-time predictions from trained models.
