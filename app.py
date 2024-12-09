@@ -70,7 +70,7 @@ def create_skin_cancer_model(X_train, y_train):
 
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
     model.fit(X_train, y_train, epochs=10, verbose=2)
-    model.save("trained_skin_cancer_model.h5")
+    model.save("skin_model.keras")
     return model
 
 
@@ -83,7 +83,7 @@ app_mode = st.sidebar.selectbox("Select Mode", ["Home", "About", "Train & Test M
 if app_mode == "Home":
     st.header("🌿 Skin Cancer Detection Dashboard")
     image_path="th.jpg"
-    st.image("image_path", use_column_width=True)
+   st.image("image_path", use_column_width=True)
     st.markdown("""
     This system provides analysis of skin cancer prediction using advanced machine learning models.
     - Upload a dataset to test model predictions.
