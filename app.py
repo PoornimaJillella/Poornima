@@ -96,25 +96,28 @@ def preprocess_uploaded_image(image_file):
     """
     Preprocess the uploaded image into numerical features expected by the model.
     This function computes the mean of R, G, B values and a general mean pixel intensity.
+    Logs extracted features for debugging purposes.
     """
     try:
-        # Open the image and resize
-        image = Image.open(image_file).convert('RGB').resize((128, 128))  # Resize to expected input dimensions
-        image = np.array(image) / 255.0  # Normalize pixel values to 0-1
-        
-        # Calculate mean pixel intensities as features
+        # Open and resize the image
+        image = Image.open(image_file).convert('RGB').resize((128, 128))
+        image = np.array(image) / 255.0  # Normalize values
+
+        # Extract features: mean pixel values
         mean_red = np.mean(image[:, :, 0])
         mean_green = np.mean(image[:, :, 1])
         mean_blue = np.mean(image[:, :, 2])
-        mean_intensity = np.mean(image)  # General mean pixel intensity
-        
-        # Create feature array with 4 numerical values
-        image_features = np.array([mean_red, mean_green, mean_blue, mean_intensity])
-        image_features = np.expand_dims(image_features, axis=0)  # Reshape for prediction
+        mean_intensity = np.mean(image)
 
+        # Return as feature array with 4 numbers
+        image_features = np.array([mean_red, mean_green, mean_blue, mean_intensity])
+        image_features = image_features.reshape(1, 4)  # Reshape for model input
+
+        # Debugging output
+        st.write("Extracted Features for Debugging:", image_features)
         return image_features
     except Exception as e:
-        st.error(f"Error processing the image: {e}")
+        st.error(f"Error processing image: {e}")
         print(e)
         return None
 
@@ -122,6 +125,7 @@ def preprocess_uploaded_image(image_file):
 def run_prediction(image_file):
     """
     Run prediction on an uploaded image after preprocessing it into expected numerical features.
+    Logs confidence and features for better debugging.
     """
     # Load the trained model
     model = tf.keras.models.load_model('trained_skin_cancer_model.keras')
@@ -131,10 +135,19 @@ def run_prediction(image_file):
 
     if features is not None:
         try:
+            # Log the feature shape and input data
+            st.write("Feature shape being passed into model:", features.shape)
+
             # Predict using the features
             predictions = model.predict(features)
+            st.write("Model Predictions (raw probabilities):", predictions)
+
             predicted_idx = np.argmax(predictions, axis=1)[0]
             confidence = predictions[0][predicted_idx]
+
+            # Debugging outputs
+            st.write("Predicted index:", predicted_idx)
+            st.write("Confidence score:", confidence)
 
             return predicted_idx, confidence
         except Exception as e:
@@ -206,4 +219,5 @@ elif app_mode == "About":
     - Testing using your uploaded image for prediction.
     - Real-time predictions from trained models.
     """)
+
 
