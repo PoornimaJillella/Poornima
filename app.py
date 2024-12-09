@@ -82,13 +82,14 @@ app_mode = st.sidebar.selectbox("Select Mode", ["Home", "About", "Train & Test M
 # Main Page
 if app_mode == "Home":
     st.header("🌿 Skin Cancer Detection Dashboard")
-    image_path="th.jpg"
-   st.image("image_path", use_column_width=True)
+    image_path = "th.jpg"
+    st.image(image_path, use_column_width=True)  # Fixed indentation
     st.markdown("""
     This system provides analysis of skin cancer prediction using advanced machine learning models.
     - Upload a dataset to test model predictions.
     - Train a model if needed or run predictions on your own images.
     """)
+
 
 
 # About Section
