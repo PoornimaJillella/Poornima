@@ -213,3 +213,4 @@ elif app_mode == "Prediction":
                     disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
                     st.success(f"✅ Prediction Confidence: {confidence:.2f}")
                     st.subheader(f"Predicted Disease: {disease_name}")
+
