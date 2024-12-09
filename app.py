@@ -43,21 +43,16 @@ def preprocess_data(df):
 def create_and_train_model(X_train, y_train, X_test, y_test):
     """
     Defines, compiles, and trains a basic model for classification.
-    Handles class imbalance by computing class weights.
     Saves model after training.
     """
-    # Decode class indices properly
-    y_train_indices = np.argmax(y_train, axis=1)  # Ensure indices are extracted properly
+    # Compute class weights to handle class imbalance
     class_weights = class_weight.compute_class_weight(
-        class_weight='balanced',
-        classes=np.unique(y_train_indices),
-        y=y_train_indices
+        'balanced',
+        np.unique(y_train.argmax(axis=1)),  # Assuming y_train is one-hot encoded
+        y_train.argmax(axis=1)
     )
 
     class_weights_dict = {i: class_weights[i] for i in range(len(class_weights))}
-
-    # Debugging output
-    st.write("Class weights computed:", class_weights_dict)
 
     # Define the model architecture
     model = Sequential([
@@ -95,24 +90,13 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
 def preprocess_uploaded_image(image_file):
     """
     Preprocess the uploaded image into numerical features expected by the model.
-    This function computes the mean of R, G, B values and a general mean pixel intensity.
     """
     try:
         # Open the image and resize
-        image = Image.open(image_file).convert('RGB').resize((128, 128))  # Resize to expected input dimensions
+        image = Image.open(image_file).convert('RGB').resize((128, 128))  # Resize image
         image = np.array(image) / 255.0  # Normalize pixel values to 0-1
-        
-        # Calculate mean pixel intensities as features
-        mean_red = np.mean(image[:, :, 0])
-        mean_green = np.mean(image[:, :, 1])
-        mean_blue = np.mean(image[:, :, 2])
-        mean_intensity = np.mean(image)  # General mean pixel intensity
-        
-        # Create feature array with 4 numerical values
-        image_features = np.array([mean_red, mean_green, mean_blue, mean_intensity])
-        image_features = np.expand_dims(image_features, axis=0)  # Reshape for prediction
-
-        return image_features
+        image = np.expand_dims(image, axis=0)  # Reshape for batch input
+        return image
     except Exception as e:
         st.error(f"Error processing the image: {e}")
         print(e)
@@ -201,11 +185,12 @@ elif app_mode == "About":
     st.header("📖 About This App")
     st.markdown("""
     This web application uses machine learning techniques to predict skin cancer risk from dermoscopic image data.
-    It was built using Streamlit, **TensorFlow, and **Python, and allows:
+    It was built using *Streamlit, **TensorFlow, and **Python*, and allows:
     - Model training with your own labeled datasets.
     - Testing using your uploaded image for prediction.
     - Real-time predictions from trained models.
     """)
+
 
 
 
