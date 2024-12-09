@@ -45,9 +45,9 @@ def create_and_train_model(X_train, y_train):
     """
     # Create a neural network model
     model = Sequential([
-        Dense(128, activation="relu", input_shape=(X_train.shape[1],)),
-        Dropout(0.4),
-        Dense(64, activation="relu"),
+        Dense(64, activation="relu", input_shape=(X_train.shape[1],)),
+        Dropout(0.3),
+        Dense(32, activation="relu"),
         Dropout(0.3),
         Dense(y_train.shape[1], activation="softmax")  # Softmax layer for multi-class classification
     ])
@@ -66,17 +66,29 @@ def create_and_train_model(X_train, y_train):
 
 def preprocess_uploaded_image(image_file):
     """
-    Preprocess the uploaded image into features expected by the model.
-    Normalize pixel intensities and reshape into feature vectors.
+    Preprocess the uploaded image into the expected 4 numerical features.
+    Features extracted:
+    - Mean red pixel intensity
+    - Mean green pixel intensity
+    - Mean blue pixel intensity
+    - Overall mean pixel intensity
     """
     try:
-        # Open and preprocess image
-        image = Image.open(image_file).convert('RGB').resize((128, 128))  # Resize to 128x128
+        # Open the image
+        image = Image.open(image_file).convert('RGB').resize((128, 128))  # Resize image
         image = np.array(image) / 255.0  # Normalize pixel values
 
-        # Flatten pixel intensities into a vector
-        image_features = image.reshape(-1)  # Flatten 128x128 image to 1D feature vector
-        image_features = np.expand_dims(image_features, axis=0)  # Add batch dimension for prediction
+        # Calculate extracted features
+        mean_red = np.mean(image[:, :, 0])
+        mean_green = np.mean(image[:, :, 1])
+        mean_blue = np.mean(image[:, :, 2])
+        mean_intensity = np.mean(image)
+
+        # Combine the features into a 1D array (4 features expected by the model)
+        image_features = np.array([mean_red, mean_green, mean_blue, mean_intensity])
+
+        # Reshape to add the batch dimension
+        image_features = np.expand_dims(image_features, axis=0)  # Shape becomes (1, 4)
         return image_features
     except Exception as e:
         st.error(f"Error preprocessing the image: {e}")
@@ -168,5 +180,6 @@ elif app_mode == "About":
     - Model training capabilities.
     - Real-time image prediction based on uploaded images.
     """)
+
 
 
