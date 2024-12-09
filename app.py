@@ -49,12 +49,13 @@ def load_and_preprocess_data(image_dir, csv_file):
     # Split data into train and test sets
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    return X_train, X_test, y_train, y_test
+    return X_train, X_test, y_train, y_test, DISEASE_MAPPING
 
 
 def create_and_train_cnn_model(X_train, y_train):
     """
     Create and train a CNN model for classification.
+    Saves model after training.
     """
     model = Sequential([
         Conv2D(32, (3, 3), activation="relu", input_shape=(128, 128, 3)),
@@ -71,11 +72,11 @@ def create_and_train_cnn_model(X_train, y_train):
     # Train model
     model.fit(X_train, y_train, validation_split=0.2, epochs=5, batch_size=32, verbose=2)
 
-    # Save the model after training
-    model.save('trained_skin_cancer_cnn_model.h5')
-    st.success("✅ Model trained and saved successfully!")
-
-    return model
+    # Save the model
+    model_save_path = os.path.join(os.getcwd(), 'trained_skin_cancer_cnn_model.h5')
+    model.save(model_save_path)
+    st.success(f"✅ Model trained and saved successfully at {model_save_path}")
+    return model_save_path
 
 
 def preprocess_uploaded_image(image_file):
@@ -93,11 +94,11 @@ def preprocess_uploaded_image(image_file):
         return None
 
 
-def run_prediction(image_file):
+def run_prediction(image_file, model_path):
     """
     Perform a prediction on the uploaded image using the trained CNN model.
     """
-    model = tf.keras.models.load_model('trained_skin_cancer_cnn_model.h5')
+    model = tf.keras.models.load_model(model_path)
     img = preprocess_uploaded_image(image_file)
 
     if img is None:
@@ -131,15 +132,7 @@ st.sidebar.title("🩺 Skin Cancer Detection Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
 # Main Pages
-if app_mode == "Home":
-    st.title("🌿 Skin Cancer Detection App")
-    st.markdown("""
-    This app allows:
-    - Model training with your own dataset.
-    - Testing uploaded images for disease classification using a trained CNN model.
-    """)
-
-elif app_mode == "Train & Test Model":
+if app_mode == "Train & Test Model":
     st.header("🛠 Train & Test Model")
     uploaded_csv = st.file_uploader("Upload the CSV file with `image_id` and `dx` (labels)", type=["csv"])
     uploaded_image_dir = st.text_input("Enter the path to the image directory", "")
@@ -147,32 +140,24 @@ elif app_mode == "Train & Test Model":
     if uploaded_csv and uploaded_image_dir:
         if st.button("Train Model"):
             with st.spinner("Training model..."):
-                X_train, X_test, y_train, y_test = load_and_preprocess_data(uploaded_image_dir, uploaded_csv)
-                create_and_train_cnn_model(X_train, y_train)
+                X_train, X_test, y_train, y_test, disease_mapping = load_and_preprocess_data(
+                    uploaded_image_dir, uploaded_csv)
+                model_path = create_and_train_cnn_model(X_train, y_train)
 
 elif app_mode == "Prediction":
     st.header("🔮 Make Predictions")
     uploaded_image = st.file_uploader("Upload a skin image for prediction", type=["jpg", "png"])
+    model_path = 'trained_skin_cancer_cnn_model.h5'
 
     if uploaded_image:
         st.image(uploaded_image, caption="Uploaded Image")
         if st.button("Run Prediction"):
-            with st.spinner("Running prediction..."):
-                predicted_disease, confidence = run_prediction(uploaded_image)
+            with st.spinner("⏳ Running prediction..."):
+                predicted_disease, confidence = run_prediction(uploaded_image, model_path)
                 if predicted_disease:
                     st.success(f"✅ Disease Predicted: {predicted_disease}")
                     st.success(f"Prediction Confidence: {confidence:.2f}")
 
-
-elif app_mode == "About":
-    st.header("📖 About")
-    st.markdown("""
-    This web application uses **CNNs** to predict skin cancer risk from dermoscopic image data.
-    It allows:
-    - Training models with CSV data and associated image directories.
-    - Testing custom images uploaded for real-time skin cancer risk prediction.
-    Built with **TensorFlow, Streamlit, and Python**.
-    """)
 
 
 
