@@ -194,3 +194,4 @@ if app_mode == "Train & Test Model":
                 X_train, X_test, y_train, y_test, num_classes, label_encoder = preprocess_data(df)
                 create_and_train_model(X_train, y_train, X_test, y_test, num_classes)
 
+
