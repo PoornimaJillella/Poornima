@@ -14,7 +14,7 @@ def preprocess_data(df):
     """
     Preprocess data for training. Handles encoding and splits data.
     """
-    # Label encoding target variable
+    # Label encoding target variable dynamically
     label_encoder = LabelEncoder()
     df['dx'] = label_encoder.fit_transform(df['dx'])
 
@@ -36,7 +36,10 @@ def preprocess_data(df):
     # Split data
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    return X_train, X_test, y_train, y_test, label_encoder
+    # Extract class names dynamically
+    class_names = label_encoder.inverse_transform(np.arange(len(label_encoder.classes_)))
+
+    return X_train, X_test, y_train, y_test, class_names, label_encoder
 
 
 def create_and_train_model(X_train, y_train):
@@ -84,7 +87,7 @@ def preprocess_uploaded_image(image_file):
         return None
 
 
-def run_prediction(image_file):
+def run_prediction(image_file, class_names):
     """
     Run prediction on an uploaded image after preprocessing it into expected numerical features.
     """
@@ -101,7 +104,10 @@ def run_prediction(image_file):
             predicted_idx = np.argmax(predictions, axis=1)[0]
             confidence = predictions[0][predicted_idx]
 
-            return predicted_idx, confidence
+            # Map index to the disease name dynamically
+            predicted_disease = class_names[predicted_idx]
+
+            return predicted_disease, confidence
         except Exception as e:
             st.error(f"Error during model prediction: {e}")
             print(e)
@@ -113,15 +119,6 @@ def run_prediction(image_file):
 # Sidebar Menu
 st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
-
-
-# Mapping indices to disease names
-DISEASE_MAPPING = {
-    0: "Melanoma",
-    1: "Basal Cell Carcinoma",
-    2: "Squamous Cell Carcinoma",
-    3: "Benign Lesion"
-}
 
 
 # Main Pages
@@ -145,7 +142,7 @@ elif app_mode == "Train & Test Model":
 
         if st.button("Train Model"):
             with st.spinner("🔄 Training model..."):
-                X_train, X_test, y_train, y_test, label_encoder = preprocess_data(df)
+                X_train, X_test, y_train, y_test, class_names, label_encoder = preprocess_data(df)
                 create_and_train_model(X_train, y_train)
 
 elif app_mode == "Prediction":
@@ -156,13 +153,14 @@ elif app_mode == "Prediction":
         st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
         if st.button("Run Prediction"):
             with st.spinner("⏳ Running prediction..."):
-                predicted_idx, confidence = run_prediction(uploaded_image)
-                if predicted_idx is not None:
-                    disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
+                # Dynamically extract the class names based on training classes
+                df_uploaded = pd.read_csv("trained_skin_cancer_model.classes.csv")  # This file would be created dynamically
+                class_names = df_uploaded.columns
+                predicted_disease, confidence = run_prediction(uploaded_image, class_names)
+                if predicted_disease:
                     st.success(f"✅ Prediction Confidence: {confidence:.2f}")
-                    st.subheader(f"Predicted Disease: {disease_name}")
-
-elif app_mode == "About":
+                    st.subheader(f"Predicted Disease: {predicted_disease}")
+else:
     st.header("📖 About This App")
     st.markdown("""
     This web application uses machine learning techniques to predict skin cancer risk from dermoscopic image data.
@@ -171,6 +169,7 @@ elif app_mode == "About":
     - Testing using your uploaded image for prediction.
     - Real-time predictions from trained models.
     """)
+
 
 
 
