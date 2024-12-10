@@ -15,6 +15,7 @@ import os
 def preprocess_data(df):
     """
     Preprocess data for training. Handles encoding and splits data.
+    Ensures input features always match the expected dimensions.
     """
     # Label encoding target variable
     label_encoder = LabelEncoder()
@@ -24,8 +25,8 @@ def preprocess_data(df):
     if 'age' in df.columns:
         df['age'].fillna(df['age'].mean(), inplace=True)
 
-    # Prepare features and target
-    X = df.drop(columns=['image_id', 'dx_type', 'dx'], errors='ignore')
+    # Prepare features and target with only the expected dimensions
+    X = df[['age', 'sex', 'some_feature', 'another_feature']]  # Adjust these feature names if needed
     y = df['dx'].to_numpy()
     y = tf.keras.utils.to_categorical(y)  # Convert to one-hot encoding for classification
 
@@ -98,38 +99,28 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
 def preprocess_uploaded_image(image_file):
     """
     Preprocesses the uploaded image to extract unique statistical features for model input.
-    This ensures that each image produces unique features and distinct predictions.
     """
     try:
         # Open image and resize it to expected dimensions
         image = Image.open(image_file).convert('RGB').resize((128, 128))
         image_array = np.array(image) / 255.0  # Normalize pixel values
 
-        # Extract dynamic image statistics
-        mean_rgb = image_array.mean(axis=(0, 1))  # Mean of RGB values
-        std_rgb = image_array.std(axis=(0, 1))  # Standard deviation of RGB values
-        max_rgb = image_array.max(axis=(0, 1))  # Max pixel values
-        min_rgb = image_array.min(axis=(0, 1))  # Min pixel values
-        median_rgb = np.median(image_array, axis=(0, 1))  # Median RGB values
-
-        # Combine these features
-        feature_vector = np.array([
-            mean_rgb[0], mean_rgb[1], mean_rgb[2],
-            std_rgb.mean(),
-            max_rgb.mean(),
-            min_rgb.mean(),
-            median_rgb.mean()
-        ])
-
+        # Extracting statistical features
+        features = [
+            image_array.mean(axis=(0, 1)).mean(),  # Mean
+            image_array.std(axis=(0, 1)).mean(),   # Std
+            image_array.max(axis=(0, 1)).mean(),   # Max
+            image_array.min(axis=(0, 1)).mean()    # Min
+        ]
+        
         # Normalize and reshape
-        feature_vector = feature_vector[:4]  # Limit to first 4 features
+        feature_vector = np.array(features)
         feature_vector = np.expand_dims(feature_vector, axis=0)  # Reshape into (1, 4)
 
-        st.write("Extracted feature vector for prediction:", feature_vector.shape)
+        st.write("Extracted feature vector for prediction:", feature_vector)
         return feature_vector
     except Exception as e:
         st.error(f"Error processing the image: {e}")
-        print(e)
         return None
 
 
@@ -165,15 +156,16 @@ def run_prediction(image_file):
 
 
 # Sidebar Menu
-st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
+st.sidebar.title("🩺 Skin Cancer Vision Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
 if app_mode == "Home":
-    st.title("Welcome to the Skin Cancer Prediction Dashboard 🩺")
+    st.title("Welcome to Skin Cancer Vision 🩺")
     st.write("This web application uses machine learning techniques to demonstrate skin cancer risk detection and predictions.")
     st.subheader("Explore the features and interact with the app!")
 
 elif app_mode == "Train & Test Model":
+    st.title("Train Your Model with Custom Data")
     uploaded_file = st.file_uploader("Upload your CSV file for training", type=["csv"])
 
     if uploaded_file:
@@ -184,12 +176,23 @@ elif app_mode == "Train & Test Model":
                 create_and_train_model(X_train, y_train, X_test, y_test)
 
 elif app_mode == "Prediction":
+    st.title("Skin Cancer Prediction via Image Upload")
     uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
     if uploaded_image:
         st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
         if st.button("Run Prediction"):
             with st.spinner("Running prediction..."):
                 run_prediction(uploaded_image)
+
+elif app_mode == "About":
+    st.title("About Skin Cancer Vision")
+    st.write("""
+        Skin Cancer Vision is a machine learning-based application that uses image analysis and statistical insights
+        to detect potential risk of skin cancer diseases. It provides predictive insights based on uploaded image features
+        or trained model data for diagnosis purposes.
+    """)
+    st.markdown("[Visit our website at skincancervision.com](http://skincancervision.com)")
+
 
 
 
