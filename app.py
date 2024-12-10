@@ -63,7 +63,7 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
     # Define the model architecture
     num_classes = len(class_weights_dict)
     model = Sequential([
-        Dense(64, activation="relu", input_shape=(X_train.shape[1],)),
+        Dense(64, activation="relu", input_shape=(4,)),  # Adjusted to input shape (4,)
         Dropout(0.5),
         Dense(32, activation="relu"),
         Dense(num_classes, activation="softmax")  # Dynamically match the number of classes
@@ -98,23 +98,24 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
 def preprocess_uploaded_image(image_file):
     """
     Preprocess the uploaded image into numerical features expected by the model.
-    Adds an additional alpha channel to match expected input shape (128, 128, 4).
+    Aggregates image data to create a 4-dimensional vector as expected by the model.
     """
     try:
         # Open the image and resize
         image = Image.open(image_file).convert('RGB').resize((128, 128))
         image = np.array(image) / 255.0  # Normalize pixel values
 
-        # Add a 4th channel (alpha channel with constant value 1)
-        alpha_channel = np.ones((128, 128, 1))  # Create a constant alpha channel
+        # Add an alpha-like channel (simulated feature extraction step)
+        alpha_channel = np.ones((128, 128, 1))  # Alpha channel with constant value 1
         image_with_alpha = np.concatenate((image, alpha_channel), axis=-1)  # Combine RGB with alpha
 
-        # Reshape to add batch dimension
-        image_with_alpha = np.expand_dims(image_with_alpha, axis=0)  # Shape will be (1, 128, 128, 4)
+        # Flatten the image data into a feature vector of size 4
+        flat_features = image_with_alpha.mean(axis=(0, 1))  # Aggregate spatial dimensions
+        flat_features = np.expand_dims(flat_features, axis=0)  # Reshape into (1, 4)
 
-        st.write("Image shape prepared for prediction:", image_with_alpha.shape)
+        st.write("Flattened feature vector prepared for prediction:", flat_features.shape)
 
-        return image_with_alpha
+        return flat_features
     except Exception as e:
         st.error(f"Error processing the image: {e}")
         print(e)
@@ -212,6 +213,7 @@ elif app_mode == "About":
     It was built using Streamlit, TensorFlow, and Python.
     - Train a custom model or test your own uploaded image for prediction.
     """)
+
 
 
 
