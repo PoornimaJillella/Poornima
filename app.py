@@ -155,7 +155,7 @@ def run_prediction(image_file):
         if image_file.name.endswith(".png"):
             disease = "No Cancer Detected"
             confidence = 100.0
-            action = "Regular check-ups recommended if skin concerns persist."
+            action = "Nothing to be worried about."
         else:
             if image_file.name in prediction_cache:
                 disease = prediction_cache[image_file.name]['disease']
