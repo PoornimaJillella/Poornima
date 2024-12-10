@@ -107,12 +107,15 @@ def preprocess_uploaded_image(image_file):
     """
     try:
         # Open the image and resize
-        image = Image.open(image_file).convert('RGB').resize((128, 128))  # Resize image to expected dimensions
+        image = Image.open(image_file).convert('RGB').resize((128, 128))  # Resize image
         image = np.array(image) / 255.0  # Normalize pixel values
-        image = np.expand_dims(image, axis=0)  # Reshape for batch dimension
+        image = image.reshape(-1)  # Flatten the image into a 1D array
 
-        # Debugging
-        st.write("Image shape for prediction:", image.shape)
+        # Debugging output
+        st.write("Image shape for prediction (flattened):", image.shape)
+
+        # Reshape to add batch dimension
+        image = np.expand_dims(image, axis=0)  # Make it (1, num_features)
 
         return image
     except Exception as e:
@@ -209,15 +212,6 @@ elif app_mode == "Prediction":
             with st.spinner("⏳ Running prediction..."):
                 run_prediction(uploaded_image)
 
-elif app_mode == "About":
-    st.header("📖 About This App")
-    st.markdown("""
-    This web application uses machine learning techniques to predict skin cancer risk from dermoscopic image data.
-    Built using Streamlit, TensorFlow, and Python, the application allows:
-    - Model training with your own labeled datasets.
-    - Testing predictions with uploaded images.
-    - Real-time inference with trained models.
-    """)
 
 
 
