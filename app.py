@@ -9,7 +9,6 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import class_weight
 from PIL import Image
 import os
-import tensorflow.keras.backend as K
 
 
 # Helper Functions
@@ -123,23 +122,6 @@ def preprocess_uploaded_image(image_file):
         return None
 
 
-# Prediction with Variance (Monte Carlo Sampling with Dropout during inference)
-def predict_with_uncertainty(f_model, X_input, n_simulations=100):
-    """
-    Perform stochastic forward passes through the model by applying dropout at inference time
-    to introduce variance.
-    """
-    # Force dropout during inference
-    f = K.function([f_model.input, K.learning_phase()], [f_model.output])
-
-    # Perform multiple stochastic passes
-    preds = np.array([f([X_input, 1])[0] for _ in range(n_simulations)])
-
-    # Average predictions
-    mean_prediction = preds.mean(axis=0)
-    return mean_prediction
-
-
 DISEASE_MAPPING = {
     0: "Melanoma",
     1: "Basal Cell Carcinoma",
@@ -150,8 +132,7 @@ DISEASE_MAPPING = {
 
 def run_prediction(image_file):
     """
-    Preprocesses the image, runs it through the trained model with variance in outputs,
-    and returns the predicted class.
+    Preprocesses the image, runs it through the trained model, and returns the predicted class.
     """
     # Extract file name without extension
     image_name = os.path.splitext(image_file.name)[0]
@@ -164,21 +145,18 @@ def run_prediction(image_file):
 
     if features is not None:
         try:
-            # Perform stochastic prediction with uncertainty/variance
-            predictions = predict_with_uncertainty(model, features, n_simulations=100)
-
-            # Determine final prediction as the class with the highest averaged probability
-            predicted_idx = np.argmax(predictions.mean(axis=0), axis=-1)
-            confidence = predictions.mean(axis=0)[predicted_idx]
+            # Run prediction
+            predictions = model.predict(features)
+            predicted_idx = np.argmax(predictions, axis=1)[0]
+            confidence = predictions[0][predicted_idx]
 
             # Map index to disease
             disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
 
             # Display the prediction and confidence
-            st.success(f"✅ Prediction Confidence with Variance: {confidence:.2%}")
+            st.success(f"✅ Prediction Confidence: {confidence:.2%}")
             st.subheader(f"Predicted Disease: {disease_name}")
             st.info(f"Based on uploaded image: {image_name}")
-
             return predicted_idx, confidence
         except Exception as e:
             st.error(f"Error during model prediction: {e}")
@@ -226,6 +204,16 @@ elif app_mode == "Prediction":
         if st.button("Run Prediction"):
             with st.spinner("⏳ Running prediction..."):
                 run_prediction(uploaded_image)
+
+elif app_mode == "About":
+    st.header("📖 About This App")
+    st.markdown("""
+    This web application uses machine learning techniques to predict skin cancer risk from dermoscopic image data.
+    Built with Streamlit and TensorFlow, it allows:
+    - Model training with custom datasets.
+    - Real-time predictions using uploaded images.
+    - Dynamic visualization and prediction results based on input data.
+    """)
 
 
 
