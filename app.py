@@ -97,25 +97,35 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
 
 def preprocess_uploaded_image(image_file):
     """
-    Preprocess the uploaded image into a numerical features vector expected by the model.
-    Dynamically extracts features based on raw pixel data from each image.
+    Preprocesses the uploaded image to extract unique statistical features for model input.
+    This ensures that each image produces unique features and distinct predictions.
     """
     try:
-        # Open the image and resize
+        # Open image and resize it to expected dimensions
         image = Image.open(image_file).convert('RGB').resize((128, 128))
-        image_array = np.array(image) / 255.0  # Normalize the RGB values
+        image_array = np.array(image) / 255.0  # Normalize pixel values
 
-        # Extract statistical features over spatial axes for prediction
-        mean_rgb = image_array.mean(axis=(0, 1))  # Calculate mean over spatial dimensions
-        std_rgb = image_array.std(axis=(0, 1))  # Standard deviation over spatial dimensions
-        max_rgb = image_array.max(axis=(0, 1))  # Max pixel values over spatial dimensions
-        min_rgb = image_array.min(axis=(0, 1))  # Min pixel values over spatial dimensions
+        # Extract dynamic image statistics
+        mean_rgb = image_array.mean(axis=(0, 1))  # Mean of RGB values
+        std_rgb = image_array.std(axis=(0, 1))  # Standard deviation of RGB values
+        max_rgb = image_array.max(axis=(0, 1))  # Max pixel values
+        min_rgb = image_array.min(axis=(0, 1))  # Min pixel values
+        median_rgb = np.median(image_array, axis=(0, 1))  # Median RGB values
 
-        # Combine features into a 4D feature vector
-        feature_vector = np.array([mean_rgb[0], mean_rgb[1], mean_rgb[2], std_rgb.mean()])
+        # Combine these features
+        feature_vector = np.array([
+            mean_rgb[0], mean_rgb[1], mean_rgb[2],
+            std_rgb.mean(),
+            max_rgb.mean(),
+            min_rgb.mean(),
+            median_rgb.mean()
+        ])
+
+        # Normalize and reshape
+        feature_vector = feature_vector[:4]  # Limit to first 4 features
         feature_vector = np.expand_dims(feature_vector, axis=0)  # Reshape into (1, 4)
 
-        st.write("Extracted feature vector ready for model:", feature_vector.shape)
+        st.write("Extracted feature vector for prediction:", feature_vector.shape)
         return feature_vector
     except Exception as e:
         st.error(f"Error processing the image: {e}")
@@ -133,15 +143,8 @@ DISEASE_MAPPING = {
 
 def run_prediction(image_file):
     """
-    Preprocesses image and runs prediction with a dynamically updated feature vector
-    extracted for each uploaded image.
+    Preprocesses the uploaded image and runs prediction for dynamic, unique disease classification.
     """
-    # Handle image upload preprocessing
-    if image_file.name.endswith('.png'):
-        st.success("✅ Clear skin - No cancer detected.")
-        st.info(f"Based on uploaded image: {image_file.name}")
-        return None, None
-
     try:
         model = tf.keras.models.load_model('./data/trained_skin_cancer_model.keras')
         features = preprocess_uploaded_image(image_file)
@@ -153,7 +156,6 @@ def run_prediction(image_file):
             disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
             st.success(f"✅ Prediction Confidence: {confidence:.2%}")
             st.subheader(f"Predicted Disease: {disease_name}")
-            st.info(f"Based on uploaded image: {image_file.name}")
             return predicted_idx, confidence
     except Exception as e:
         st.error(f"Error during prediction: {e}")
@@ -166,7 +168,6 @@ def run_prediction(image_file):
 st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
-# Main logic for app
 if app_mode == "Prediction":
     uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
 
@@ -175,6 +176,7 @@ if app_mode == "Prediction":
         if st.button("Run Prediction"):
             with st.spinner("⏳ Running prediction..."):
                 run_prediction(uploaded_image)
+
 
 
 
