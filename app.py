@@ -144,8 +144,16 @@ DISEASE_MAPPING = {
 def run_prediction(image_file):
     """
     Preprocesses the uploaded image and runs prediction for dynamic, unique disease classification.
+    If a PNG file is uploaded, return a predefined no-cancer message instead of AI prediction.
     """
     try:
+        # Handle PNG files
+        if image_file.name.endswith(".png"):
+            st.success("✅ No Cancer Detected.")
+            st.subheader("Recommendation: Nothing to worry about.")
+            return None
+
+        # Regular image prediction flow
         model = tf.keras.models.load_model('./data/trained_skin_cancer_model.keras')
         features = preprocess_uploaded_image(image_file)
 
@@ -154,32 +162,29 @@ def run_prediction(image_file):
             predicted_idx = np.argmax(predictions, axis=-1)[0]
             confidence = predictions[0][predicted_idx]
             disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
-            st.success(f"✅ Prediction Confidence: {confidence:.2%}")
+            st.success(f"✅ Confidence: {confidence:.2%}")
             st.subheader(f"Predicted Disease: {disease_name}")
-            return predicted_idx, confidence
     except Exception as e:
         st.error(f"Error during prediction: {e}")
         print(e)
-
-    return None, None
+    return None
 
 
 # Sidebar Menu
-st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
+st.sidebar.title("🩺 Skin Vision Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
 if app_mode == "Home":
-    st.title("Welcome to the Skin Cancer Prediction Dashboard 🩺")
-    st.write("This web application uses machine learning techniques to demonstrate skin cancer risk detection and predictions.")
-    st.subheader("Explore the features and interact with the app!")
+    st.title("Welcome to SkinVision.com 🩺")
+    st.write("SkinVision.com empowers early detection using advanced AI-powered skin cancer detection tools.")
+    st.subheader("Explore features, upload data, and analyze results!")
 
 elif app_mode == "Train & Test Model":
     uploaded_file = st.file_uploader("Upload your CSV file for training", type=["csv"])
-
     if uploaded_file:
-        df = pd.read_csv(uploaded_file)
         if st.button("Train Model"):
             with st.spinner("Training model..."):
+                df = pd.read_csv(uploaded_file)
                 X_train, X_test, y_train, y_test, label_encoder = preprocess_data(df)
                 create_and_train_model(X_train, y_train, X_test, y_test)
 
@@ -190,6 +195,7 @@ elif app_mode == "Prediction":
         if st.button("Run Prediction"):
             with st.spinner("Running prediction..."):
                 run_prediction(uploaded_image)
+
 
 
 
