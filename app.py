@@ -63,7 +63,7 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
     # Define the model architecture
     num_classes = len(class_weights_dict)
     model = Sequential([
-        Dense(64, activation="relu", input_shape=(4,)),  # Adjusted to input shape (4,)
+        Dense(64, activation="relu", input_shape=(4,)),  # Input shape matches feature vector length
         Dropout(0.5),
         Dense(32, activation="relu"),
         Dense(num_classes, activation="softmax")  # Dynamically match the number of classes
@@ -98,22 +98,22 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
 def preprocess_uploaded_image(image_file):
     """
     Preprocess the uploaded image into numerical features expected by the model.
-    Aggregates image data to create a 4-dimensional vector as expected by the model.
+    This converts the uploaded image into a 4-dimensional vector expected by the trained model.
     """
     try:
         # Open the image and resize
         image = Image.open(image_file).convert('RGB').resize((128, 128))
         image = np.array(image) / 255.0  # Normalize pixel values
 
-        # Add an alpha-like channel (simulated feature extraction step)
-        alpha_channel = np.ones((128, 128, 1))  # Alpha channel with constant value 1
-        image_with_alpha = np.concatenate((image, alpha_channel), axis=-1)  # Combine RGB with alpha
+        # Add an alpha-like channel for variability
+        alpha_channel = np.ones((128, 128, 1))  # Constant alpha-like channel
+        image_with_alpha = np.concatenate((image, alpha_channel), axis=-1)  # Merge RGB with simulated alpha
 
-        # Flatten the image data into a feature vector of size 4
-        flat_features = image_with_alpha.mean(axis=(0, 1))  # Aggregate spatial dimensions
-        flat_features = np.expand_dims(flat_features, axis=0)  # Reshape into (1, 4)
+        # Create a feature vector by averaging over pixel space
+        flat_features = image_with_alpha.mean(axis=(0, 1))  # Compute average across spatial dimensions
+        flat_features = np.expand_dims(flat_features, axis=0)  # Reshape into shape (1, 4)
 
-        st.write("Flattened feature vector prepared for prediction:", flat_features.shape)
+        st.write("Processed feature vector ready for prediction:", flat_features.shape)
 
         return flat_features
     except Exception as e:
@@ -132,7 +132,7 @@ DISEASE_MAPPING = {
 
 def run_prediction(image_file):
     """
-    Run prediction on an uploaded image after preprocessing it into expected numerical features.
+    Preprocesses the image, runs it through the trained model, and returns the predicted class.
     """
     # Extract file name without extension
     image_name = os.path.splitext(image_file.name)[0]
@@ -140,20 +140,20 @@ def run_prediction(image_file):
     # Load the trained model
     model = tf.keras.models.load_model('./data/trained_skin_cancer_model.keras')
 
-    # Preprocess the uploaded image into features expected by the model
+    # Preprocess uploaded image into a format expected by the model
     features = preprocess_uploaded_image(image_file)
 
     if features is not None:
         try:
-            # Predict using the features
+            # Run prediction
             predictions = model.predict(features)
             predicted_idx = np.argmax(predictions, axis=1)[0]
             confidence = predictions[0][predicted_idx]
 
-            # Map prediction index back to a disease name
+            # Map index to disease
             disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
 
-            # Display results
+            # Display the prediction and confidence
             st.success(f"✅ Prediction Confidence: {confidence:.2%}")
             st.subheader(f"Predicted Disease: {disease_name}")
             st.info(f"Based on uploaded image: {image_name}")
@@ -161,10 +161,9 @@ def run_prediction(image_file):
         except Exception as e:
             st.error(f"Error during model prediction: {e}")
             print(e)
-            return None, None
     else:
-        st.error("Failed to process the uploaded image.")
-        return None, None
+        st.error("Failed to preprocess uploaded image.")
+    return None, None
 
 
 # Sidebar Menu
@@ -210,9 +209,12 @@ elif app_mode == "About":
     st.header("📖 About This App")
     st.markdown("""
     This web application uses machine learning techniques to predict skin cancer risk from dermoscopic image data.
-    It was built using Streamlit, TensorFlow, and Python.
-    - Train a custom model or test your own uploaded image for prediction.
+    Built with Streamlit and TensorFlow, it allows:
+    - Model training with custom datasets.
+    - Real-time predictions using uploaded images.
+    - Dynamic visualization and prediction results based on input data.
     """)
+
 
 
 
