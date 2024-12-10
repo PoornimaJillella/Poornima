@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.layers import Dense, Dropout, Conv2D, MaxPooling2D, Flatten
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import class_weight
@@ -36,7 +36,7 @@ def preprocess_data(df):
     X = X.apply(pd.to_numeric, errors='coerce').fillna(0).to_numpy()
 
     # Normalize features
-    X = X / 255.0  # Normalize pixel values if features are expected image-like
+    X = X / 255.0  # Normalize pixel values
 
     # Split data into training/testing sets
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -44,57 +44,50 @@ def preprocess_data(df):
     # Debugging Information
     st.write("Unique classes:", df['dx'].unique())
     st.write("Number of classes:", num_classes)
-    st.write("Encoded y_train shape:", y_train.shape)
 
-    return X_train, X_test, y_train, y_test, label_encoder, num_classes
+    return X_train, X_test, y_train, y_test, num_classes
 
 
-def create_and_train_model(X_train, y_train, X_test, y_test, num_classes):
+def create_and_train_cnn(X_train, y_train, X_test, y_test, num_classes):
     """
-    Defines, compiles, and trains a model with dynamic class handling and logs results.
+    Defines, compiles, and trains a CNN model capable of handling image inputs directly.
     """
-    # Decode class indices properly
-    y_train_indices = np.argmax(y_train, axis=1)  # Ensure indices are extracted properly
-    class_weights = class_weight.compute_class_weight(
-        class_weight='balanced',
-        classes=np.unique(y_train_indices),
-        y=y_train_indices
-    )
+    # Reshape X_train/X_test into image-like data (128x128x3) for CNNs
+    X_train = X_train.reshape(-1, 128, 128, 3)  # Reshape data for CNNs
+    X_test = X_test.reshape(-1, 128, 128, 3)
 
-    class_weights_dict = {i: class_weights[i] for i in range(len(class_weights))}
-
-    # Debugging Output
-    st.write("Class weights computed:", class_weights_dict)
-
-    # Model architecture
+    # Define a CNN model suitable for image classification
     model = Sequential([
-        Dense(64, activation="relu", input_shape=(X_train.shape[1],)),
+        Conv2D(32, (3, 3), activation="relu", input_shape=(128, 128, 3)),
+        MaxPooling2D(pool_size=(2, 2)),
+        Conv2D(64, (3, 3), activation="relu"),
+        MaxPooling2D(pool_size=(2, 2)),
+        Flatten(),
+        Dense(64, activation="relu"),
         Dropout(0.5),
-        Dense(32, activation="relu"),
-        Dense(num_classes, activation="softmax")  # Dynamically match the number of classes
+        Dense(num_classes, activation="softmax")  # Final classification layer
     ])
 
-    # Compile model with appropriate metrics
+    # Compile the model
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
-    # Train the model with computed class weights
+    # Train the model
     model.fit(
         X_train,
         y_train,
         validation_split=0.2,
         epochs=10,
         batch_size=16,
-        class_weight=class_weights_dict,
         verbose=2
     )
 
-    # Save trained model
-    model_save_path = './data/trained_skin_cancer_model.keras'
+    # Save the trained model
+    model_save_path = './data/trained_skin_cancer_cnn_model.keras'
     os.makedirs(os.path.dirname(model_save_path), exist_ok=True)  # Ensure directory exists
     model.save(model_save_path)
     st.success(f"✅ Model trained and saved to: {model_save_path}")
 
-    # Evaluate on test data
+    # Evaluate on the test set
     loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
     st.success(f"🔍 Test Accuracy: {accuracy:.2%}")
 
@@ -103,19 +96,15 @@ def create_and_train_model(X_train, y_train, X_test, y_test, num_classes):
 
 def preprocess_uploaded_image(image_file):
     """
-    Preprocess uploaded image into features suitable for prediction by resizing, normalizing, and reshaping.
+    Preprocess uploaded image into the shape expected by CNN for prediction.
     """
     try:
-        # Open the image and resize
-        image = Image.open(image_file).convert('RGB').resize((128, 128))  # Resize image
+        # Open the image, resize, and normalize
+        image = Image.open(image_file).convert('RGB').resize((128, 128))
         image = np.array(image) / 255.0  # Normalize pixel values
-        image = image.reshape(-1)  # Flatten the image into a 1D array
+        image = np.expand_dims(image, axis=0)  # Reshape to (1, 128, 128, 3)
 
-        # Debugging output
-        st.write("Image shape for prediction (flattened):", image.shape)
-
-        # Reshape to add batch dimension
-        image = np.expand_dims(image, axis=0)  # Make it (1, num_features)
+        st.write("Image shape prepared for prediction:", image.shape)
 
         return image
     except Exception as e:
@@ -124,35 +113,23 @@ def preprocess_uploaded_image(image_file):
         return None
 
 
-DISEASE_MAPPING = {
-    0: "Melanoma",
-    1: "Basal Cell Carcinoma",
-    2: "Squamous Cell Carcinoma",
-    3: "Benign Lesion"
-}
-
-
 def run_prediction(image_file):
     """
-    Runs model prediction using preprocessed uploaded image.
+    Runs prediction with the trained CNN model on preprocessed images.
     """
-    # Extract file name
-    image_name = os.path.splitext(image_file.name)[0]
-
-    # Load the trained model
-    model_path = './data/trained_skin_cancer_model.keras'
+    # Path to trained CNN model
+    model_path = './data/trained_skin_cancer_cnn_model.keras'
     if not os.path.exists(model_path):
         st.error("❌ Trained model not found. Please train the model first.")
         return None, None
 
     model = tf.keras.models.load_model(model_path)
 
-    # Preprocess image
+    # Preprocess the uploaded image
     features = preprocess_uploaded_image(image_file)
 
     if features is not None:
         try:
-            # Predict with trained model
             predictions = model.predict(features)
             predicted_idx = np.argmax(predictions, axis=1)[0]
             confidence = predictions[0][predicted_idx]
@@ -160,57 +137,15 @@ def run_prediction(image_file):
             # Map prediction index back to disease name
             disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
 
-            # Display results
             st.success(f"✅ Prediction Confidence: {confidence:.2%}")
             st.subheader(f"Predicted Disease: {disease_name}")
-            st.info(f"Based on uploaded image: {image_name}")
             return predicted_idx, confidence
         except Exception as e:
             st.error(f"Error during prediction: {e}")
             print(e)
-            return None, None
     else:
         st.error("❌ Failed to preprocess the uploaded image.")
-        return None, None
 
-
-# Sidebar Menu
-st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
-app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
-
-# Main Pages
-if app_mode == "Home":
-    st.title("🌿 Skin Cancer Detection App")
-    st.markdown("""
-    This web app allows you to:
-    - Train a model with your own CSV dataset.
-    - Predict based on your uploaded image using a trained model.
-    - Use real-time prediction features.
-    """)
-
-elif app_mode == "Train & Test Model":
-    st.header("🛠 Train & Test Model")
-    uploaded_file = st.file_uploader("Upload your CSV file for training", type=["csv"])
-
-    if uploaded_file:
-        st.info("📊 Dataset loaded. Preparing...")
-        df = pd.read_csv(uploaded_file)
-        st.write("Dataset Preview:", df.head())
-
-        if st.button("Train Model"):
-            with st.spinner("🔄 Training model..."):
-                X_train, X_test, y_train, y_test, label_encoder, num_classes = preprocess_data(df)
-                create_and_train_model(X_train, y_train, X_test, y_test, num_classes)
-
-elif app_mode == "Prediction":
-    st.header("🔮 Make Predictions")
-    uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
-
-    if uploaded_image:
-        st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
-        if st.button("Run Prediction"):
-            with st.spinner("⏳ Running prediction..."):
-                run_prediction(uploaded_image)
 
 
 
