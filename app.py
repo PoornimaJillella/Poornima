@@ -160,7 +160,7 @@ st.sidebar.title("🩺 Skin Cancer Vision Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
 if app_mode == "Home":
-    st.title("🔬 Welcome to Skin Cancer Vision ")
+    st.title("🔬\n Welcome to Skin Cancer Vision ")
     st.write("This web application uses machine learning techniques to demonstrate skin cancer risk detection and predictions.")
     st.subheader("Explore the features and interact with the app!")
 
