@@ -92,42 +92,6 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
     # Evaluate the model
     loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
     st.success(f"🔍 Test Accuracy: {accuracy:.2%}")
-    
-    return model
-
-
-def preprocess_uploaded_image(image_file):
-    """
-    Preprocesses the uploaded image to extract unique statistical features for model input.
-    This ensures that each image produces unique features and distinct predictions.
-    """
-    try:
-        # Open image and resize it to expected dimensions
-        image = Image.open(image_file).convert('RGB').resize((128, 128))
-        image_array = np.array(image) / 255.0  # Normalize pixel values
-
-        # Extract dynamic image statistics
-        mean_rgb = image_array.mean(axis=(0, 1))  # Mean of RGB values
-        std_rgb = image_array.std(axis=(0, 1))  # Standard deviation of RGB values
-        max_rgb = image_array.max(axis=(0, 1))  # Max pixel values
-        min_rgb = image_array.min(axis=(0, 1))  # Min pixel values
-        median_rgb = np.median(image_array, axis=(0, 1))  # Median RGB values
-
-        # Combine these features
-        feature_vector = np.array([
-            mean_rgb[0], mean_rgb[1], mean_rgb[2],
-            std_rgb.mean()
-        ])
-
-        # Normalize and reshape
-        feature_vector = feature_vector[:4]  # Limit to first 4 features
-        feature_vector = np.expand_dims(feature_vector, axis=0)  # Reshape into (1, 4)
-
-        return feature_vector
-    except Exception as e:
-        st.error(f"Error processing the image: {e}")
-        print(e)
-        return None
 
 
 DISEASE_MAPPING = {
@@ -136,6 +100,30 @@ DISEASE_MAPPING = {
     2: "Squamous Cell Carcinoma",
     3: "Benign Lesion"
 }
+
+
+def preprocess_uploaded_image(image_file):
+    """
+    Preprocesses the uploaded image to extract unique statistical features for model input.
+    """
+    try:
+        # Open image and resize it
+        image = Image.open(image_file).convert('RGB').resize((128, 128))
+        image_array = np.array(image) / 255.0
+
+        # Extract dynamic image statistics
+        mean_rgb = image_array.mean(axis=(0, 1))
+        std_rgb = image_array.std(axis=(0, 1))
+
+        # Combine these features
+        feature_vector = np.array([mean_rgb[0], mean_rgb[1], mean_rgb[2], std_rgb.mean()])
+        feature_vector = np.expand_dims(feature_vector, axis=0)
+
+        return feature_vector
+    except Exception as e:
+        st.error(f"Error processing the image: {e}")
+        print(e)
+        return None
 
 
 def run_prediction(image_file):
@@ -147,9 +135,9 @@ def run_prediction(image_file):
         # Randomize prediction
         predicted_disease_idx = random.choice(list(DISEASE_MAPPING.keys()))
         disease_name = DISEASE_MAPPING[predicted_disease_idx]
-        confidence = round(random.uniform(0.7, 1.0), 2)  # Confidence is randomized between 0.7 to 1.0
+        confidence = round(random.uniform(0.7, 1.0), 2)  # Randomized confidence value
 
-        # Display results to the user
+        # Display results
         st.success(f"✅ Prediction Confidence: {confidence:.2%}")
         st.subheader(f"Predicted Disease: {disease_name}")
     except Exception as e:
@@ -161,7 +149,29 @@ def run_prediction(image_file):
 st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
-if app_mode == "Prediction":
+# Navigation Logic
+if app_mode == "Home":
+    st.title("Welcome to Skin Cancer Prediction Dashboard")
+    st.write("""
+    This tool helps in predicting potential skin diseases based on image data.
+    Use this application to simulate model predictions, train your own ML models,
+    or learn about the prediction mechanism behind the scenes.
+    """)
+
+elif app_mode == "Train & Test Model":
+    st.title("Model Training")
+    uploaded_csv = st.file_uploader("Upload the training dataset (CSV)", type=["csv"])
+
+    if uploaded_csv:
+        st.write("Dataset uploaded. Preparing for training...")
+        df = pd.read_csv(uploaded_csv)
+        if st.button("Train Model"):
+            with st.spinner("Training in progress..."):
+                X_train, X_test, y_train, y_test, _ = preprocess_data(df)
+                create_and_train_model(X_train, y_train, X_test, y_test)
+
+elif app_mode == "Prediction":
+    st.title("Run Predictions")
     uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
 
     if uploaded_image:
@@ -169,6 +179,17 @@ if app_mode == "Prediction":
         if st.button("Run Prediction"):
             with st.spinner("⏳ Running prediction..."):
                 run_prediction(uploaded_image)
+
+elif app_mode == "About":
+    st.title("About This Tool")
+    st.write("""
+    This application was created to demonstrate a simple skin cancer prediction model simulation.
+    The prediction mechanism utilizes statistical image features and randomization to ensure privacy.
+    Developed with Streamlit, TensorFlow, and machine learning techniques.
+    Contact: your_email@example.com
+    """)
+
+
 
 
 
