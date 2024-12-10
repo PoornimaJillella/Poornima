@@ -161,8 +161,7 @@ app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "P
 
 if app_mode == "Home":
     st.title("🔬Welcome to Skin Cancer Vision ")
-    st.write("This web application uses machine learning techniques to demonstrate skin cancer risk detection and predictions.Our AI-powered platform analyzes images of skin lesions to identify signs of melanoma and other skin cancers, enabling users to take proactive steps towards better skin health. The website serves as a tool for individuals, healthcare providers, and researchers looking to utilize AI technology in skin cancer prevention.
-")
+    st.write("This web application uses machine learning techniques to demonstrate skin cancer risk detection and predictions.Our AI-powered platform analyzes images of skin lesions to identify signs of melanoma and other skin cancers, enabling users to take proactive steps towards better skin health. The website serves as a tool for individuals, healthcare providers, and researchers looking to utilize AI technology in skin cancer prevention.")
     st.subheader("Empowering Early Detection with AI-Driven Skin Cancer Diagnosis")
     st.subheader("Explore the features and interact with the app!")
 elif app_mode == "Train & Test Model":
