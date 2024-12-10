@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.layers import Dense, Dropout, Conv2D, MaxPooling2D, Flatten
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import class_weight
@@ -44,7 +44,7 @@ def preprocess_data(df):
 
 def create_and_train_model(X_train, y_train, X_test, y_test):
     """
-    Defines, compiles, and trains a basic model for classification with proper class handling.
+    Defines, compiles, and trains a CNN model for classification with proper class handling.
     Handles class imbalance by computing class weights.
     Saves model after training.
     """
@@ -61,12 +61,14 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
     # Debugging output
     st.write("Class weights computed:", class_weights_dict)
 
-    # Define the model architecture
+    # Define the CNN model architecture
     num_classes = len(class_weights_dict)
     model = Sequential([
-        Dense(64, activation="relu", input_shape=(4,)),  # Input shape matches feature vector length
+        Conv2D(32, (3,3), activation="relu", input_shape=(128, 128, 3)),  # Input dimensions for images
+        MaxPooling2D((2,2)),
+        Flatten(),
+        Dense(64, activation="relu"),
         Dropout(0.5),
-        Dense(32, activation="relu"),
         Dense(num_classes, activation="softmax")  # Dynamically match the number of classes
     ])
 
@@ -74,7 +76,7 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
     # Train the model with class weights
-    model.fit(
+    history = model.fit(
         X_train,
         y_train,
         validation_split=0.2,
@@ -93,10 +95,11 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
     loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
     st.success(f"🔍 Test Accuracy: {accuracy:.2%}")
     
+    # Return the model for predictions
     return model
 
 
-def preprocess_uploaded_image(image_file):
+def preprocess_uploaded_image(image_file, add_noise=True):
     """
     Preprocess the uploaded image into numerical features expected by the model.
     Introduces intentional variance by adding slight random noise for variability in prediction.
@@ -106,22 +109,17 @@ def preprocess_uploaded_image(image_file):
         image = Image.open(image_file).convert('RGB').resize((128, 128))
         image = np.array(image) / 255.0  # Normalize pixel values
 
-        # Add an alpha-like channel for variability
-        alpha_channel = np.ones((128, 128, 1))  # Constant alpha-like channel
-        image_with_alpha = np.concatenate((image, alpha_channel), axis=-1)  # Merge RGB with simulated alpha
+        if add_noise:
+            # Add variance/noise for stochastic behavior
+            noise = np.random.normal(0, 0.01, image.shape)  # Gaussian noise
+            image += noise
 
-        # Average across spatial dimensions to form a feature vector
-        flat_features = image_with_alpha.mean(axis=(0, 1))  # Compute average across spatial dimensions
+        # Ensure the image is reshaped properly for CNNs
+        image = np.expand_dims(image, axis=0)  # Shape becomes (1, 128, 128, 3)
 
-        # Add random noise/variance here for stochastic prediction
-        noise = np.random.normal(0, 0.01, flat_features.shape)  # Gaussian noise
-        flat_features += noise
+        st.write("Processed image shape ready for prediction:", image.shape)
 
-        flat_features = np.expand_dims(flat_features, axis=0)  # Reshape into shape (1, 4)
-
-        st.write("Processed feature vector with variance ready for prediction:", flat_features.shape)
-
-        return flat_features
+        return image
     except Exception as e:
         st.error(f"Error processing the image: {e}")
         print(e)
@@ -151,7 +149,7 @@ def run_prediction(image_file):
 
     if features is not None:
         try:
-            # Randomly seed variance each time to ensure outputs vary
+            # Predict with the model
             predictions = model.predict(features)
 
             # Map index to disease
@@ -175,18 +173,15 @@ def run_prediction(image_file):
     return None, None
 
 
+# Streamlit UI
+st.title("Skin Cancer Diagnosis Prediction")
+st.write("""
+This application uses a trained neural network to classify uploaded skin images
+into potential disease categories. Upload a skin lesion image to begin.
+""")
 
+uploaded_image = st.file_uploader("Upload an image of a skin lesion", type=["jpg", "jpeg", "png"])
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+if uploaded_image:
+    if st.button("Run Prediction"):
+        run_prediction(uploaded_image)
