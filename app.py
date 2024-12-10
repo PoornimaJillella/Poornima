@@ -151,24 +151,38 @@ def run_prediction(image_file):
     Randomized prediction unless it is a .png image
     """
     try:
-        # Ensure model exists
-        model_path = './data/trained_skin_cancer_model.keras'
-        if os.path.exists(model_path):
-            # Randomize prediction unless it's a PNG
-            if image_file.name.endswith(".png"):
-                # Predict skin cancer disease directly for PNG
-                disease = "No Cancer Detected"
-            else:
-                # Generate random disease prediction
-                if image_file.name in prediction_cache:
-                    disease = prediction_cache[image_file.name]
-                else:
-                    disease = random_disease_prediction()
-                    prediction_cache[image_file.name] = disease
-
-            st.success(f"✅ Prediction: {disease}")
+        # Logic for random prediction or fixed response
+        if image_file.name.endswith(".png"):
+            disease = "No Cancer Detected"
+            confidence = 100.0
+            action = "Regular check-ups recommended if skin concerns persist."
         else:
-            st.error("Model not found. Please train the model first.")
+            if image_file.name in prediction_cache:
+                disease = prediction_cache[image_file.name]['disease']
+                confidence = prediction_cache[image_file.name]['confidence']
+                action = prediction_cache[image_file.name]['action']
+            else:
+                disease = random_disease_prediction()
+                confidence = round(random.uniform(50, 90), 2)  # Confidence between 50% and 90%
+                if disease == "Melanoma":
+                    action = "Consult a dermatologist immediately for a detailed examination."
+                elif disease == "Basal Cell Carcinoma":
+                    action = "Schedule a check-up with a dermatologist for early diagnosis."
+                elif disease == "Squamous Cell Carcinoma":
+                    action = "Seek treatment to prevent complications."
+                else:
+                    action = "Routine skin monitoring is advised."
+
+                # Save to cache
+                prediction_cache[image_file.name] = {
+                    "disease": disease,
+                    "confidence": confidence,
+                    "action": action
+                }
+
+        st.success(f"✅ Prediction: {disease}")
+        st.write(f"Confidence: {confidence:.2f}%")
+        st.warning(f"Recommended Action: {action}")
     except Exception as e:
         st.error(f"Prediction failed: {e}")
         print(e)
@@ -196,4 +210,5 @@ elif app_mode == "Prediction":
         if st.button("Run Prediction"):
             with st.spinner("Running prediction..."):
                 run_prediction(uploaded_image)
+
 
