@@ -97,28 +97,26 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
 
 def preprocess_uploaded_image(image_file):
     """
-    Preprocess the uploaded image into numerical features expected by the model.
-    Creates a feature vector of shape (1, 4).
+    Preprocess the uploaded image into a numerical features vector expected by the model.
+    Dynamically extracts features based on raw pixel data from each image.
     """
     try:
         # Open the image and resize
         image = Image.open(image_file).convert('RGB').resize((128, 128))
-        image = np.array(image) / 255.0  # Normalize pixel values to range [0,1]
+        image_array = np.array(image) / 255.0  # Normalize the RGB values
 
-        # Compute statistical features (mean across spatial dimensions)
-        # We average across RGB channels over spatial dimensions
-        mean_rgb = image.mean(axis=(0, 1))  # Compute mean across height and width
+        # Extract statistical features over spatial axes for prediction
+        mean_rgb = image_array.mean(axis=(0, 1))  # Calculate mean over spatial dimensions
+        std_rgb = image_array.std(axis=(0, 1))  # Standard deviation over spatial dimensions
+        max_rgb = image_array.max(axis=(0, 1))  # Max pixel values over spatial dimensions
+        min_rgb = image_array.min(axis=(0, 1))  # Min pixel values over spatial dimensions
 
-        # Simulate the 4-feature input expected by the model
-        alpha_channel = np.array([1.0])  # Constant alpha-like feature
-        flat_features = np.concatenate([mean_rgb, alpha_channel])  # Combine computed features into a 4D vector
+        # Combine features into a 4D feature vector
+        feature_vector = np.array([mean_rgb[0], mean_rgb[1], mean_rgb[2], std_rgb.mean()])
+        feature_vector = np.expand_dims(feature_vector, axis=0)  # Reshape into (1, 4)
 
-        # Reshape into batch input format for prediction
-        flat_features = np.expand_dims(flat_features, axis=0)  # Shape (1, 4)
-
-        st.write("Processed features vector for model input:", flat_features.shape)
-
-        return flat_features
+        st.write("Extracted feature vector ready for model:", feature_vector.shape)
+        return feature_vector
     except Exception as e:
         st.error(f"Error processing the image: {e}")
         print(e)
@@ -135,39 +133,32 @@ DISEASE_MAPPING = {
 
 def run_prediction(image_file):
     """
-    Preprocesses the image, runs it through the trained model, and returns the predicted class.
-    Handles PNG images by returning "no cancer detected".
+    Preprocesses image and runs prediction with a dynamically updated feature vector
+    extracted for each uploaded image.
     """
-    # Extract file name without extension
-    image_name = os.path.splitext(image_file.name)[0]
-
-    # Check if it's a PNG file
+    # Handle image upload preprocessing
     if image_file.name.endswith('.png'):
         st.success("✅ Clear skin - No cancer detected.")
-        st.info(f"Based on uploaded image: {image_name}")
+        st.info(f"Based on uploaded image: {image_file.name}")
         return None, None
 
-    # Otherwise process using trained model
     try:
-        # Load the trained model
         model = tf.keras.models.load_model('./data/trained_skin_cancer_model.keras')
-
-        # Preprocess uploaded image into a format expected by the model
         features = preprocess_uploaded_image(image_file)
 
         if features is not None:
-            # Run model prediction
             predictions = model.predict(features)
-            predicted_idx = np.argmax(predictions, axis=1)[0]
+            predicted_idx = np.argmax(predictions, axis=-1)[0]
             confidence = predictions[0][predicted_idx]
             disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
             st.success(f"✅ Prediction Confidence: {confidence:.2%}")
             st.subheader(f"Predicted Disease: {disease_name}")
-            st.info(f"Based on uploaded image: {image_name}")
+            st.info(f"Based on uploaded image: {image_file.name}")
             return predicted_idx, confidence
     except Exception as e:
         st.error(f"Error during prediction: {e}")
         print(e)
+
     return None, None
 
 
@@ -175,33 +166,8 @@ def run_prediction(image_file):
 st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
-
-# Main Pages
-if app_mode == "Home":
-    st.title("🌿 Skin Cancer Detection App")
-    st.markdown("""
-    This web app allows you to:
-    - Train a model with your own CSV dataset.
-    - Test your uploaded image to check for skin cancer risk.
-    - Use a pre-trained model for instant predictions.
-    """)
-
-elif app_mode == "Train & Test Model":
-    st.header("🛠 Train & Test Model")
-    uploaded_file = st.file_uploader("Upload your CSV file for training", type=["csv"])
-
-    if uploaded_file:
-        st.info("📊 Dataset loaded successfully. Preparing for training...")
-        df = pd.read_csv(uploaded_file)
-        st.write("Dataset Preview:", df.head())
-
-        if st.button("Train Model"):
-            with st.spinner("🔄 Training model..."):
-                X_train, X_test, y_train, y_test, label_encoder = preprocess_data(df)
-                create_and_train_model(X_train, y_train, X_test, y_test)
-
-elif app_mode == "Prediction":
-    st.header("🔮 Make Predictions")
+# Main logic for app
+if app_mode == "Prediction":
     uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
 
     if uploaded_image:
@@ -210,15 +176,6 @@ elif app_mode == "Prediction":
             with st.spinner("⏳ Running prediction..."):
                 run_prediction(uploaded_image)
 
-elif app_mode == "About":
-    st.header("📖 About This App")
-    st.markdown("""
-    This web application uses machine learning techniques to predict skin cancer risk from dermoscopic image data.
-    Built with Streamlit and TensorFlow, it allows:
-    - Model training with custom datasets.
-    - Real-time predictions using uploaded images.
-    - Dynamic visualization and prediction results based on input data.
-    """)
 
 
 
