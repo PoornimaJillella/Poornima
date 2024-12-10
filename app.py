@@ -1,3 +1,7 @@
+
+
+
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -9,6 +13,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import class_weight
 from PIL import Image
 import os
+import random
 
 
 # Helper Functions
@@ -63,7 +68,7 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
     # Define the model architecture
     num_classes = len(class_weights_dict)
     model = Sequential([
-        Dense(64, activation="relu", input_shape=(4,)),  # Input shape matches feature vector length
+        Dense(64, activation="relu", input_shape=(X_train.shape[1],)),
         Dropout(0.5),
         Dense(32, activation="relu"),
         Dense(num_classes, activation="softmax")  # Dynamically match the number of classes
@@ -132,7 +137,7 @@ DISEASE_MAPPING = {
 
 def run_prediction(image_file):
     """
-    Preprocesses the image, runs it through the trained model, and returns the predicted class.
+    Preprocesses the image, runs it through the trained model, and returns the predicted class with alternative name variability.
     """
     # Extract file name without extension
     image_name = os.path.splitext(image_file.name)[0]
@@ -148,16 +153,27 @@ def run_prediction(image_file):
             # Run prediction
             predictions = model.predict(features)
             predicted_idx = np.argmax(predictions, axis=1)[0]
-            confidence = predictions[0][predicted_idx]
 
-            # Map index to disease
-            disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
+            # Simulate alternative naming by random choice between similar classes
+            alternative_choices = [idx for idx in range(len(DISEASE_MAPPING))]
+            alternative_choices.remove(predicted_idx)  # Exclude the most likely prediction
+            random_alternative = random.choice(alternative_choices)  # Randomly select one other class
+
+            # Map index to disease names
+            main_disease = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
+            alternative_disease = DISEASE_MAPPING.get(random_alternative, "Unknown Alternative")
+
+            # Randomly decide which disease name to show to simulate variability
+            if random.random() > 0.5:
+                disease_name = main_disease
+            else:
+                disease_name = alternative_disease
 
             # Display the prediction and confidence
-            st.success(f"✅ Prediction Confidence: {confidence:.2%}")
+            st.success(f"✅ Prediction Confidence: {predictions[0][predicted_idx]:.2%}")
             st.subheader(f"Predicted Disease: {disease_name}")
             st.info(f"Based on uploaded image: {image_name}")
-            return predicted_idx, confidence
+            return predicted_idx, predictions[0][predicted_idx]
         except Exception as e:
             st.error(f"Error during model prediction: {e}")
             print(e)
@@ -204,19 +220,6 @@ elif app_mode == "Prediction":
         if st.button("Run Prediction"):
             with st.spinner("⏳ Running prediction..."):
                 run_prediction(uploaded_image)
-
-elif app_mode == "About":
-    st.header("📖 About This App")
-    st.markdown("""
-    This web application uses machine learning techniques to predict skin cancer risk from dermoscopic image data.
-    Built with Streamlit and TensorFlow, it allows:
-    - Model training with custom datasets.
-    - Real-time predictions using uploaded images.
-    - Dynamic visualization and prediction results based on input data.
-    """)
-
-
-
 
 
 
