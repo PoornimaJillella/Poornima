@@ -155,7 +155,7 @@ def run_prediction(image_file):
         if image_file.name.endswith(".png"):
             disease = "No Cancer Detected"
             confidence = 100.0
-            action = "Nothing to be worried about."
+            action = "Regular check-ups recommended if skin concerns persist."
         else:
             if image_file.name in prediction_cache:
                 disease = prediction_cache[image_file.name]['disease']
@@ -210,5 +210,3 @@ elif app_mode == "Prediction":
         if st.button("Run Prediction"):
             with st.spinner("Running prediction..."):
                 run_prediction(uploaded_image)
-
-
