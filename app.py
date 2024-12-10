@@ -98,17 +98,23 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
 def preprocess_uploaded_image(image_file):
     """
     Preprocess the uploaded image into numerical features expected by the model.
-    This prepares the image to match the trained model's input expectations.
+    Adds an additional alpha channel to match expected input shape (128, 128, 4).
     """
     try:
         # Open the image and resize
-        image = Image.open(image_file).convert('RGB').resize((128, 128))  # Resize to expected input dimensions
+        image = Image.open(image_file).convert('RGB').resize((128, 128))
         image = np.array(image) / 255.0  # Normalize pixel values
-        image = np.expand_dims(image, axis=0)  # Reshape to add batch dimension for prediction
 
-        st.write("Image shape prepared for prediction:", image.shape)
+        # Add a 4th channel (alpha channel with constant value 1)
+        alpha_channel = np.ones((128, 128, 1))  # Create a constant alpha channel
+        image_with_alpha = np.concatenate((image, alpha_channel), axis=-1)  # Combine RGB with alpha
 
-        return image
+        # Reshape to add batch dimension
+        image_with_alpha = np.expand_dims(image_with_alpha, axis=0)  # Shape will be (1, 128, 128, 4)
+
+        st.write("Image shape prepared for prediction:", image_with_alpha.shape)
+
+        return image_with_alpha
     except Exception as e:
         st.error(f"Error processing the image: {e}")
         print(e)
@@ -203,11 +209,10 @@ elif app_mode == "About":
     st.header("📖 About This App")
     st.markdown("""
     This web application uses machine learning techniques to predict skin cancer risk from dermoscopic image data.
-    It was built using Streamlit, **TensorFlow, and **Python, and allows:
-    - Model training with your own labeled datasets.
-    - Testing using your uploaded image for prediction.
-    - Real-time predictions from trained models.
+    It was built using Streamlit, TensorFlow, and Python.
+    - Train a custom model or test your own uploaded image for prediction.
     """)
+
 
 
 
