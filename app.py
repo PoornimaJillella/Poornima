@@ -186,6 +186,14 @@ if app_mode == "Home":
     Detect, Predict, and Act with confidence using machine learning tools.
     """)
 
+elif app_mode == "About":
+    st.title("About Us 🏥")
+    st.markdown("""
+    Skin Cancer Vision uses AI to analyze uploaded skin images to predict diseases such as melanoma and carcinoma.
+    We aim to simplify the early detection process and provide insights that can save lives.
+    Stay proactive with early diagnosis and prevention.
+    """)
+
 elif app_mode == "Prediction":
     uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
     if uploaded_image:
@@ -193,6 +201,7 @@ elif app_mode == "Prediction":
         if st.button("Run Prediction"):
             with st.spinner("Running prediction..."):
                 run_prediction(uploaded_image)
+
 
 
 
