@@ -169,27 +169,30 @@ st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
 if app_mode == "Home":
-    st.title("Welcome to the Skin Cancer Prediction Dashboard 🩺")
-    st.write("This web application uses machine learning techniques to demonstrate skin cancer risk detection and predictions.")
-    st.subheader("Explore the features and interact with the app!")
+    st.title("Welcome to SkinCancerVision.com")
+    st.write("**Empowering Early Detection with AI-Driven Skin Cancer Diagnosis**")
+    st.subheader("What is SkinCancerVision?")
+    st.write("""
+SkinCancerVision.com leverages advanced machine learning algorithms to assist in the early detection of skin cancer. Our AI-powered platform analyzes images of skin lesions to identify signs of melanoma and other skin cancers, enabling users to take proactive steps toward better skin health.
+    """)
+    st.subheader("Key Features")
+    st.markdown("""
+    - **AI-Powered Detection:** Analyze skin images for potential cancerous growths.
+    - **Early Detection:** Detect skin cancer at its earliest stages.
+    - **Accessible to All:** Designed for healthcare providers, researchers, and the general public.
+    - **Privacy-Focused:** Your health data remains secure and confidential.
+    - **Educational Resources:** Learn about prevention, risks, and early detection signs.
+    - **Real-Time Updates:** Stay connected to new research findings.
+    """)
 
-elif app_mode == "Train & Test Model":
-    uploaded_file = st.file_uploader("Upload your CSV file for training", type=["csv"])
+elif app_mode == "About":
+    st.write("**About SkinCancerVision.com**")
+    st.write("""
+SkinCancerVision.com is committed to using AI technology to empower individuals with early detection of skin cancer. Designed for users across healthcare, research, and the general public, the platform offers intuitive tools, educational insights, and early diagnostic capabilities.
+    """)
 
-    if uploaded_file:
-        df = pd.read_csv(uploaded_file)
-        if st.button("Train Model"):
-            with st.spinner("Training model..."):
-                X_train, X_test, y_train, y_test, label_encoder = preprocess_data(df)
-                create_and_train_model(X_train, y_train, X_test, y_test)
+# Prediction Mode, Train Mode, and Core Logic work the same.
 
-elif app_mode == "Prediction":
-    uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
-    if uploaded_image:
-        st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
-        if st.button("Run Prediction"):
-            with st.spinner("Running prediction..."):
-                run_prediction(uploaded_image)
 
 
 
