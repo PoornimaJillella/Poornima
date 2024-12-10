@@ -147,7 +147,7 @@ app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "P
 
 if app_mode == "Home":
     st.title("Welcome to SkinVision.com 🩺")
-    st.write("SkinVision.com empowers early detection using advanced AI-powered skin cancer detection tools.")
+    st.write("This empowers early detection using advanced AI-powered skin cancer detection tools.")
     st.subheader("Explore features, upload data, and analyze results!")
 
 elif app_mode == "Train & Test Model":
@@ -176,13 +176,6 @@ elif app_mode == "About":
     It allows users to:
     - Train and test a skin cancer detection model using their dataset.
     - Predict the likelihood of skin cancer based on uploaded images.
-    
-    **Model Disclaimer**:
-    This is a simulated example. Predictions should not be used for clinical diagnosis. Always consult a medical professional for diagnosis.
-    
-    **Developer Info**:
-    - Developed by OpenAI GPT-4
-    - Tools powered by TensorFlow, Streamlit, and Machine Learning libraries.
     """)
 
 
