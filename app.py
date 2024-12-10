@@ -9,7 +9,6 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import class_weight
 from PIL import Image
 import os
-import tensorflow.keras.backend as K
 
 
 # Helper Functions
@@ -76,7 +75,7 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
     # Train the model with class weights
-    history = model.fit(
+    model.fit(
         X_train,
         y_train,
         validation_split=0.2,
@@ -95,26 +94,20 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
     loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
     st.success(f"🔍 Test Accuracy: {accuracy:.2%}")
     
-    # Return the model for predictions
     return model
 
 
-def preprocess_uploaded_image(image_file, add_noise=True):
+def preprocess_uploaded_image(image_file):
     """
     Preprocess the uploaded image into numerical features expected by the model.
-    Introduces intentional variance by adding slight random noise for variability in prediction.
+    This converts the uploaded image into a 4-dimensional vector expected by the trained model.
     """
     try:
         # Open the image and resize
         image = Image.open(image_file).convert('RGB').resize((128, 128))
         image = np.array(image) / 255.0  # Normalize pixel values
 
-        if add_noise:
-            # Add variance/noise for stochastic behavior
-            noise = np.random.normal(0, 0.01, image.shape)  # Gaussian noise
-            image += noise
-
-        # Ensure the image is reshaped properly for CNNs
+        # Reshape to CNN expected input
         image = np.expand_dims(image, axis=0)  # Shape becomes (1, 128, 128, 3)
 
         st.write("Processed image shape ready for prediction:", image.shape)
@@ -136,20 +129,19 @@ DISEASE_MAPPING = {
 
 def run_prediction(image_file):
     """
-    Preprocesses the image and makes a stochastic prediction with intentional variance.
-    Special case for PNG images to assume 'no cancer detected'.
+    Preprocesses the image, runs it through the trained model, and returns the predicted class.
+    Handles PNG images by returning "no cancer detected".
     """
     # Extract file name without extension
     image_name = os.path.splitext(image_file.name)[0]
 
+    # Check if it's a PNG file
     if image_file.name.endswith('.png'):
-        # Handle the special case for PNG uploads
         st.success("✅ Clear skin - No cancer detected.")
-        st.subheader("No disease prediction made based on this image type.")
         st.info(f"Based on uploaded image: {image_name}")
         return None, None
 
-    # Otherwise, proceed with the normal prediction
+    # Otherwise process using trained model
     try:
         # Load the trained model
         model = tf.keras.models.load_model('./data/trained_skin_cancer_model.keras')
@@ -158,41 +150,67 @@ def run_prediction(image_file):
         features = preprocess_uploaded_image(image_file)
 
         if features is not None:
-            # Predict with the model
             predictions = model.predict(features)
-
-            # Map index to disease
-            predicted_idx = np.argmax(predictions, axis=-1)[0]
+            predicted_idx = np.argmax(predictions, axis=1)[0]
             confidence = predictions[0][predicted_idx]
-
-            # Map index to disease name
             disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
-
-            # Render prediction results
             st.success(f"✅ Prediction Confidence: {confidence:.2%}")
             st.subheader(f"Predicted Disease: {disease_name}")
             st.info(f"Based on uploaded image: {image_name}")
-
             return predicted_idx, confidence
-        else:
-            st.error("Failed to preprocess uploaded image.")
     except Exception as e:
-        st.error(f"Error during model prediction: {e}")
+        st.error(f"Error during prediction: {e}")
         print(e)
-
     return None, None
 
 
-# Streamlit UI
-st.title("Skin Cancer Diagnosis Prediction")
-st.write("""
-This application uses a trained neural network to classify uploaded skin images
-into potential disease categories. Upload a skin lesion image to begin.
-""")
+# Sidebar Menu
+st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
+app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
-uploaded_image = st.file_uploader("Upload an image of a skin lesion", type=["jpg", "jpeg", "png"])
 
-if uploaded_image:
-    if st.button("Run Prediction"):
-        run_prediction(uploaded_image)
+# Main Pages
+if app_mode == "Home":
+    st.title("🌿 Skin Cancer Detection App")
+    st.markdown("""
+    This web app allows you to:
+    - Train a model with your own CSV dataset.
+    - Test your uploaded image to check for skin cancer risk.
+    - Use a pre-trained model for instant predictions.
+    """)
+
+elif app_mode == "Train & Test Model":
+    st.header("🛠 Train & Test Model")
+    uploaded_file = st.file_uploader("Upload your CSV file for training", type=["csv"])
+
+    if uploaded_file:
+        st.info("📊 Dataset loaded successfully. Preparing for training...")
+        df = pd.read_csv(uploaded_file)
+        st.write("Dataset Preview:", df.head())
+
+        if st.button("Train Model"):
+            with st.spinner("🔄 Training model..."):
+                X_train, X_test, y_train, y_test, label_encoder = preprocess_data(df)
+                create_and_train_model(X_train, y_train, X_test, y_test)
+
+elif app_mode == "Prediction":
+    st.header("🔮 Make Predictions")
+    uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
+
+    if uploaded_image:
+        st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
+        if st.button("Run Prediction"):
+            with st.spinner("⏳ Running prediction..."):
+                run_prediction(uploaded_image)
+
+elif app_mode == "About":
+    st.header("📖 About This App")
+    st.markdown("""
+    This web application uses machine learning techniques to predict skin cancer risk from dermoscopic image data.
+    Built with Streamlit and TensorFlow, it allows:
+    - Model training with custom datasets.
+    - Real-time predictions using uploaded images.
+    - Dynamic visualization and prediction results based on input data.
+    """)
+
 
