@@ -163,51 +163,31 @@ st.sidebar.title("🩺 Skin Cancer Vision Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
 if app_mode == "Home":
-    # Home page with colors and styled text
     st.markdown("""
-    <style>
-    .title {
-        color: #6a0dad;
-        font-size: 48px;
-        font-weight: bold;
-    }
-    .content {
-        font-size: 18px;
-        color: #555555;
-        line-height: 1.8;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+        Welcome to **Skin Cancer Vision**! 🩺
+        This web application utilizes AI to analyze uploaded images or CSVs to predict early signs of skin cancer.
+    """)
 
-    st.markdown('<div class="title">🔬 Welcome to Skin Cancer Vision</div>', unsafe_allow_html=True)
-    st.markdown("""
-        <div class="content">
-        This web application uses cutting-edge AI to detect early signs of skin cancer by analyzing uploaded images or datasets.
-        Explore our features to train models, evaluate predictions, and learn how you can maintain proactive skin health.
-        </div>
-    """, unsafe_allow_html=True)
-
-elif app_mode == "About":
-    # Styled about content
-    st.markdown("""
-    <style>
-    h2 {
-        color: #ff4500;
-    }
-    p {
-        font-size: 16px;
-        color: #555555;
-        line-height: 1.8;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown('<h2>About Skin Cancer Vision 🩺</h2>', unsafe_allow_html=True)
-    st.markdown("""
-        <p>Skin Cancer Vision provides AI insights to detect signs of skin cancer early by leveraging machine learning analysis. With proactive image analysis, we empower individuals to act early for better skin health.</p>
-    """, unsafe_allow_html=True)
+elif app_mode == "Train & Test Model":
+    uploaded_file = st.file_uploader("Upload your CSV for training", type=["csv"])
+    if uploaded_file:
+        df = pd.read_csv(uploaded_file)
+        if st.button("Train & Test Model"):
+            with st.spinner("Training & Testing model..."):
+                X_train, X_test, y_train, y_test, _ = preprocess_data(df)
+                if X_train is not None:
+                    create_and_train_model(X_train, y_train, X_test, y_test)
 
 elif app_mode == "Prediction":
     uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
     if uploaded_image:
         run_prediction(uploaded_image)
+
+elif app_mode == "About":
+    st.write("""
+    **About Skin Cancer Vision** 🩺:
+    - This tool uses AI to analyze skin lesion images or datasets and predict potential signs of skin cancer.
+    - Explore and use this dashboard to run predictions, train models, and learn about AI-powered diagnostics.
+    """)
+
+
