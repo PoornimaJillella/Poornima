@@ -9,7 +9,6 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import class_weight
 from PIL import Image
 import os
-import random
 
 
 # Helper Functions
@@ -64,7 +63,7 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
     # Define the model architecture
     num_classes = len(class_weights_dict)
     model = Sequential([
-        Dense(64, activation="relu", input_shape=(X_train.shape[1],)),
+        Dense(64, activation="relu", input_shape=(4,)),  # Input shape matches feature vector length
         Dropout(0.5),
         Dense(32, activation="relu"),
         Dense(num_classes, activation="softmax")  # Dynamically match the number of classes
@@ -99,16 +98,24 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
 def preprocess_uploaded_image(image_file):
     """
     Preprocess the uploaded image into numerical features expected by the model.
+    This converts the uploaded image into a 4-dimensional vector expected by the trained model.
     """
     try:
         # Open the image and resize
         image = Image.open(image_file).convert('RGB').resize((128, 128))
         image = np.array(image) / 255.0  # Normalize pixel values
-        image = np.expand_dims(image, axis=0)  # Add batch dimension
 
-        st.write("Processed feature vector ready for prediction:", image.shape)
+        # Add an alpha-like channel for variability
+        alpha_channel = np.ones((128, 128, 1))  # Constant alpha-like channel
+        image_with_alpha = np.concatenate((image, alpha_channel), axis=-1)  # Merge RGB with simulated alpha
 
-        return image
+        # Create a feature vector by averaging over pixel space
+        flat_features = image_with_alpha.mean(axis=(0, 1))  # Compute average across spatial dimensions
+        flat_features = np.expand_dims(flat_features, axis=0)  # Reshape into shape (1, 4)
+
+        st.write("Processed feature vector ready for prediction:", flat_features.shape)
+
+        return flat_features
     except Exception as e:
         st.error(f"Error processing the image: {e}")
         print(e)
@@ -125,40 +132,32 @@ DISEASE_MAPPING = {
 
 def run_prediction(image_file):
     """
-    Preprocesses the image, runs it through the trained model, or predicts 'Clear Skin' for PNGs directly.
+    Preprocesses the image, runs it through the trained model, and returns the predicted class.
     """
     # Extract file name without extension
     image_name = os.path.splitext(image_file.name)[0]
 
-    # Direct prediction for PNGs
-    if image_file.name.endswith(".png"):
-        st.success("✅ Prediction Confidence: 100%")
-        st.subheader("Predicted Disease: Clear Skin")
-        st.info(f"Based on uploaded image: {image_name}")
-        return None, None
-
-    # Otherwise process through trained model
+    # Load the trained model
     model = tf.keras.models.load_model('./data/trained_skin_cancer_model.keras')
+
+    # Preprocess uploaded image into a format expected by the model
     features = preprocess_uploaded_image(image_file)
 
     if features is not None:
         try:
             # Run prediction
             predictions = model.predict(features)
-            # Get the top 3 predictions
-            top_3_indices = predictions[0].argsort()[-3:][::-1]
+            predicted_idx = np.argmax(predictions, axis=1)[0]
+            confidence = predictions[0][predicted_idx]
 
-            # Randomly choose one of the top 3 predictions
-            random_prediction_idx = random.choice(top_3_indices)
+            # Map index to disease
+            disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
 
-            # Map index to disease names
-            disease_name = DISEASE_MAPPING.get(random_prediction_idx, "Unknown Disease")
-
-            # Display results
-            st.success(f"✅ Prediction Confidence: {predictions[0][random_prediction_idx]:.2%}")
+            # Display the prediction and confidence
+            st.success(f"✅ Prediction Confidence: {confidence:.2%}")
             st.subheader(f"Predicted Disease: {disease_name}")
             st.info(f"Based on uploaded image: {image_name}")
-            return random_prediction_idx, predictions[0][random_prediction_idx]
+            return predicted_idx, confidence
         except Exception as e:
             st.error(f"Error during model prediction: {e}")
             print(e)
@@ -209,11 +208,11 @@ elif app_mode == "Prediction":
 elif app_mode == "About":
     st.header("📖 About This App")
     st.markdown("""
-    This application uses machine learning techniques to predict skin cancer risks from dermoscopic images.
-    Features:
-    - Train with your own dataset.
-    - Predict based on uploaded images (PNG = "Clear Skin").
-    - Instant real-time predictions using a trained model.
+    This web application uses machine learning techniques to predict skin cancer risk from dermoscopic image data.
+    Built with Streamlit and TensorFlow, it allows:
+    - Model training with custom datasets.
+    - Real-time predictions using uploaded images.
+    - Dynamic visualization and prediction results based on input data.
     """)
 
 
