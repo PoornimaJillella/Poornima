@@ -179,28 +179,16 @@ def run_prediction(image_file):
 st.sidebar.title("🩺 Skin Cancer Vision Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
-if app_mode == "Home":
-    st.title("Welcome to **Skin Cancer Vision** 🩺")
-    st.markdown("""
-    Empowering users to understand skin health risks using AI.
-    Detect, Predict, and Act with confidence using machine learning tools.
-    """)
+if app_mode == "Train & Test Model":
+    uploaded_file = st.file_uploader("Upload a CSV file for training", type=["csv"])
+    if uploaded_file:
+        if st.button("Train Model"):
+            with st.spinner("Training Model..."):
+                df = pd.read_csv(uploaded_file)
+                X_train, X_test, y_train, y_test, _ = preprocess_data(df)
+                if X_train is not None:
+                    create_and_train_model(X_train, y_train, X_test, y_test)
 
-elif app_mode == "About":
-    st.title("About Us 🏥")
-    st.markdown("""
-    Skin Cancer Vision uses AI to analyze uploaded skin images to predict diseases such as melanoma and carcinoma.
-    We aim to simplify the early detection process and provide insights that can save lives.
-    Stay proactive with early diagnosis and prevention.
-    """)
-
-elif app_mode == "Prediction":
-    uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
-    if uploaded_image:
-        st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
-        if st.button("Run Prediction"):
-            with st.spinner("Running prediction..."):
-                run_prediction(uploaded_image)
 
 
 
