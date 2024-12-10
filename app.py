@@ -103,6 +103,14 @@ DISEASE_MAPPING = {
     3: "Benign Lesion"
 }
 
+# Recommendations based on disease type
+DISEASE_RECOMMENDATIONS = {
+    "Melanoma": "It is recommended to consult a dermatologist immediately. Consider a biopsy and comprehensive skin check.",
+    "Basal Cell Carcinoma": "Treatment options include surgery, topical medications, or radiation therapy. Visit your healthcare provider for treatment.",
+    "Squamous Cell Carcinoma": "Consult your dermatologist for surgical options and further cancer staging to determine the extent of the disease.",
+    "Benign Lesion": "The lesion appears non-cancerous. Regular monitoring is advised to ensure no changes occur."
+}
+
 
 def run_prediction(image_file):
     """
@@ -121,6 +129,10 @@ def run_prediction(image_file):
 
         st.success(f"✅ Confidence: {confidence:.2%}")
         st.subheader(f"Predicted Disease: {disease_name}")
+        
+        # Display safety/recommendation information
+        recommendation = DISEASE_RECOMMENDATIONS.get(disease_name, "No recommendation available.")
+        st.warning(f"💡 Recommendation: {recommendation}")
 
     except Exception as e:
         st.error(f"Error during prediction: {e}")
@@ -172,6 +184,7 @@ elif app_mode == "About":
     - Developed by OpenAI GPT-4
     - Tools powered by TensorFlow, Streamlit, and Machine Learning libraries.
     """)
+
 
 
 
