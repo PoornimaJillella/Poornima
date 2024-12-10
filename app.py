@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout, Conv2D, MaxPooling2D, Flatten
+from tensorflow.keras.layers import Dense, Dropout
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import class_weight
@@ -43,7 +43,7 @@ def preprocess_data(df):
 
 def create_and_train_model(X_train, y_train, X_test, y_test):
     """
-    Defines, compiles, and trains a CNN model for classification with proper class handling.
+    Defines, compiles, and trains a basic model for classification with proper class handling.
     Handles class imbalance by computing class weights.
     Saves model after training.
     """
@@ -60,14 +60,12 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
     # Debugging output
     st.write("Class weights computed:", class_weights_dict)
 
-    # Define the CNN model architecture
+    # Define the model architecture
     num_classes = len(class_weights_dict)
     model = Sequential([
-        Conv2D(32, (3,3), activation="relu", input_shape=(128, 128, 3)),  # Input dimensions for images
-        MaxPooling2D((2,2)),
-        Flatten(),
-        Dense(64, activation="relu"),
+        Dense(64, activation="relu", input_shape=(4,)),  # Input shape matches feature vector length
         Dropout(0.5),
+        Dense(32, activation="relu"),
         Dense(num_classes, activation="softmax")  # Dynamically match the number of classes
     ])
 
@@ -100,19 +98,27 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
 def preprocess_uploaded_image(image_file):
     """
     Preprocess the uploaded image into numerical features expected by the model.
-    This converts the uploaded image into a 4-dimensional vector expected by the trained model.
+    Creates a feature vector of shape (1, 4).
     """
     try:
         # Open the image and resize
         image = Image.open(image_file).convert('RGB').resize((128, 128))
-        image = np.array(image) / 255.0  # Normalize pixel values
+        image = np.array(image) / 255.0  # Normalize pixel values to range [0,1]
 
-        # Reshape to CNN expected input
-        image = np.expand_dims(image, axis=0)  # Shape becomes (1, 128, 128, 3)
+        # Compute statistical features (mean across spatial dimensions)
+        # We average across RGB channels over spatial dimensions
+        mean_rgb = image.mean(axis=(0, 1))  # Compute mean across height and width
 
-        st.write("Processed image shape ready for prediction:", image.shape)
+        # Simulate the 4-feature input expected by the model
+        alpha_channel = np.array([1.0])  # Constant alpha-like feature
+        flat_features = np.concatenate([mean_rgb, alpha_channel])  # Combine computed features into a 4D vector
 
-        return image
+        # Reshape into batch input format for prediction
+        flat_features = np.expand_dims(flat_features, axis=0)  # Shape (1, 4)
+
+        st.write("Processed features vector for model input:", flat_features.shape)
+
+        return flat_features
     except Exception as e:
         st.error(f"Error processing the image: {e}")
         print(e)
@@ -150,6 +156,7 @@ def run_prediction(image_file):
         features = preprocess_uploaded_image(image_file)
 
         if features is not None:
+            # Run model prediction
             predictions = model.predict(features)
             predicted_idx = np.argmax(predictions, axis=1)[0]
             confidence = predictions[0][predicted_idx]
@@ -212,5 +219,6 @@ elif app_mode == "About":
     - Real-time predictions using uploaded images.
     - Dynamic visualization and prediction results based on input data.
     """)
+
 
 
