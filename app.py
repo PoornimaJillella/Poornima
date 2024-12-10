@@ -15,9 +15,13 @@ import os
 def preprocess_data(df):
     """
     Preprocess data for training. Handles encoding and splits data.
-    Ensures input features always match the expected dimensions.
     """
     try:
+        # Ensure necessary columns exist
+        expected_columns = ['age', 'sex', 'some_feature', 'another_feature', 'dx']
+        if not all(col in df.columns for col in expected_columns):
+            raise ValueError(f"Uploaded CSV must contain the following columns: {expected_columns}")
+
         # Label encoding target variable
         label_encoder = LabelEncoder()
         df['dx'] = label_encoder.fit_transform(df['dx'])
@@ -48,37 +52,33 @@ def preprocess_data(df):
 
 def create_and_train_model(X_train, y_train, X_test, y_test):
     """
-    Defines, compiles, and trains a basic model for classification with proper class handling.
-    Handles class imbalance by computing class weights.
-    Saves model after training.
+    Handles training and saves the trained model.
     """
     try:
-        # Decode class indices properly
-        y_train_indices = np.argmax(y_train, axis=1)  # Ensure indices are extracted properly
+        # Handle class imbalance
+        y_train_indices = np.argmax(y_train, axis=1)
         class_weights = class_weight.compute_class_weight(
             class_weight='balanced',
             classes=np.unique(y_train_indices),
             y=y_train_indices
         )
-
         class_weights_dict = {i: class_weights[i] for i in range(len(class_weights))}
 
-        # Debugging output
         st.write("Class weights computed:", class_weights_dict)
 
-        # Define the model architecture
+        # Create the model dynamically
         num_classes = len(class_weights_dict)
         model = Sequential([
-            Dense(64, activation="relu", input_shape=(4,)),  # Input shape matches feature vector length
+            Dense(64, activation="relu", input_shape=(X_train.shape[1],)),  # Dynamically adjust input shape
             Dropout(0.5),
             Dense(32, activation="relu"),
-            Dense(num_classes, activation="softmax")  # Dynamically match the number of classes
+            Dense(num_classes, activation="softmax")
         ])
 
-        # Compile the model
+        # Compile model
         model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
-        # Train the model with class weights
+        # Train the model
         model.fit(
             X_train,
             y_train,
@@ -94,91 +94,50 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
         model.save(model_save_path)
         st.success(f"✅ Model trained and saved to: {model_save_path}")
 
-        # Evaluate the model
+        # Evaluate model performance
         loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
         st.success(f"🔍 Test Accuracy: {accuracy:.2%}")
-        
+
         return model
     except Exception as e:
-        st.error(f"Error during model training: {e}")
-        print(e)
-    return None
+        st.error(f"An error occurred during model training: {e}")
+        return None
 
 
 def preprocess_uploaded_image(image_file):
     """
-    Preprocesses the uploaded image for model prediction.
-    Extracts statistical features as input for the ML model.
+    Preprocess image for prediction
     """
     try:
-        # Open image and preprocess
         image = Image.open(image_file).convert('RGB').resize((128, 128))
-        image_array = np.array(image) / 255.0  # Normalize pixel values
-
-        # Extract statistical features
+        image_array = np.array(image) / 255.0  # Normalize the image
+        # Extract features from image statistics
         features = [
             image_array.mean(axis=(0, 1)).mean(),
             image_array.std(axis=(0, 1)).mean(),
             image_array.max(axis=(0, 1)).mean(),
             image_array.min(axis=(0, 1)).mean()
         ]
-        
-        # Reshape features for model input
         feature_vector = np.array(features)
-        feature_vector = np.expand_dims(feature_vector, axis=0)
-
-        st.write("Extracted features for prediction:", feature_vector)
+        feature_vector = np.expand_dims(feature_vector, axis=0)  # Reshape for model
+        st.write("Extracted features from uploaded image:", feature_vector)
         return feature_vector
     except Exception as e:
         st.error(f"Error processing image: {e}")
         return None
 
 
-DISEASE_MAPPING = {
-    0: "Melanoma",
-    1: "Basal Cell Carcinoma",
-    2: "Squamous Cell Carcinoma",
-    3: "Benign Lesion"
-}
-
-
-def run_prediction(image_file):
-    """
-    Preprocesses the uploaded image and runs prediction for unique disease classification.
-    Logic added to ensure PNG images always return 'Clear Skin - No Cancer Detected.'
-    """
-    try:
-        # Bypass logic for PNG images
-        if image_file.name.endswith('.png'):
-            st.success("✅ No cancer detected in the uploaded skin image (PNG detected).")
-            st.subheader("Clear Skin - No Cancer Detected")
-            return None, None
-
-        # Normal model prediction for other image types
-        model = tf.keras.models.load_model('./data/trained_skin_cancer_model.keras')
-        features = preprocess_uploaded_image(image_file)
-
-        if features is not None:
-            predictions = model.predict(features)
-            predicted_idx = np.argmax(predictions, axis=-1)[0]
-            confidence = predictions[0][predicted_idx]
-            disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
-            st.success(f"✅ Prediction Confidence: {confidence:.2%}")
-            st.subheader(f"Predicted Disease: {disease_name}")
-            return predicted_idx, confidence
-    except Exception as e:
-        st.error(f"Error during prediction: {e}")
-        print(e)
-
-    return None, None
-
-
-# Sidebar Menu
+# Main App
 st.sidebar.title("🩺 Skin Cancer Vision Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
 if app_mode == "Home":
     st.title("🔬 Welcome to Skin Cancer Vision")
+    st.write("""
+        This web application uses machine learning techniques to demonstrate
+        skin cancer risk detection and predictions. Our AI-powered platform analyzes images of skin lesions
+        to identify signs of melanoma and other skin cancers, enabling users to take proactive steps towards better skin health.
+    """)
 elif app_mode == "Train & Test Model":
     uploaded_file = st.file_uploader("Upload a CSV file for training", type=["csv"])
     if uploaded_file:
@@ -198,7 +157,9 @@ elif app_mode == "Prediction":
 elif app_mode == "About":
     st.write("""
         Skin Cancer Vision uses AI-powered image analysis to predict potential skin cancer diseases by analyzing uploaded images.
+        It provides users and healthcare professionals a simple way to monitor and diagnose signs of skin cancer early.
     """)
+
 
 
 
