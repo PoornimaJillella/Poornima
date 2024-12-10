@@ -1,7 +1,3 @@
-
-
-
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -220,6 +216,7 @@ elif app_mode == "Prediction":
         if st.button("Run Prediction"):
             with st.spinner("⏳ Running prediction..."):
                 run_prediction(uploaded_image)
+
 
 
 
