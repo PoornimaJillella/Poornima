@@ -51,15 +51,69 @@ def preprocess_data(df):
         return None, None, None, None, None
 
 
-def preprocess_uploaded_image(image_file):
+def create_and_train_model(X_train, y_train, X_test, y_test):
     """
-    Preprocesses the uploaded image for model prediction.
-    PNG-specific logic added here for clear skin detection simulation.
+    Defines, compiles, and trains a basic model for classification with proper class handling.
+    Handles class imbalance by computing class weights.
+    Saves model after training.
     """
     try:
-        # Open and preprocess the image
+        # Handle class imbalance
+        y_train_indices = np.argmax(y_train, axis=1)
+        class_weights = class_weight.compute_class_weight(
+            class_weight='balanced',
+            classes=np.unique(y_train_indices),
+            y=y_train_indices
+        )
+        class_weights_dict = {i: class_weights[i] for i in range(len(class_weights))}
+
+        st.write("Class weights computed:", class_weights_dict)
+
+        # Create the model dynamically
+        num_classes = len(class_weights_dict)
+        model = Sequential([
+            Dense(64, activation="relu", input_shape=(X_train.shape[1],)),
+            Dropout(0.5),
+            Dense(32, activation="relu"),
+            Dense(num_classes, activation="softmax")
+        ])
+
+        # Compile the model
+        model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+
+        # Train the model
+        model.fit(
+            X_train,
+            y_train,
+            validation_split=0.2,
+            epochs=10,
+            batch_size=16,
+            class_weight=class_weights_dict,
+            verbose=2
+        )
+
+        # Save the model
+        model_save_path = './data/trained_skin_cancer_model.keras'
+        model.save(model_save_path)
+        st.success(f"✅ Model trained and saved to: {model_save_path}")
+
+        # Evaluate model performance
+        loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
+        st.success(f"🔍 Test Accuracy: {accuracy:.2%}")
+
+        return model
+    except Exception as e:
+        st.error(f"An error occurred during model training: {e}")
+        return None
+
+
+def preprocess_uploaded_image(image_file):
+    """
+    Preprocesses the uploaded image to extract unique statistical features for model input.
+    """
+    try:
         image = Image.open(image_file).convert('RGB').resize((128, 128))
-        image_array = np.array(image) / 255.0  # Normalize pixel values
+        image_array = np.array(image) / 255.0  # Normalize the image
         # Extracting statistical features
         features = [
             image_array.mean(axis=(0, 1)).mean(),
@@ -86,30 +140,29 @@ DISEASE_MAPPING = {
 
 def run_prediction(image_file):
     """
-    Run prediction with the logic that PNGs always result in 'No Cancer Detected' by default.
+    Preprocesses the uploaded image and runs prediction for dynamic disease classification.
+    Introduces logic to return 'No Cancer Detected' for clear skin images.
     """
     try:
-        # PNG-specific logic
-        if image_file.name.endswith('.png'):
-            st.success("✅ No cancer detected in the uploaded skin image (PNG detected).")
-            st.subheader("Clear Skin - No Cancer Detected")
-            return None, None
-
-        # Non-PNG predictions
+        # Load trained model
         model = tf.keras.models.load_model('./data/trained_skin_cancer_model.keras')
+        # Preprocess uploaded image
         features = preprocess_uploaded_image(image_file)
 
         if features is not None:
+            # Perform prediction
             predictions = model.predict(features)
 
-            # Confidence threshold logic
-            confidence_threshold = 0.6
+            # Confidence threshold logic for clear skin detection
+            confidence_threshold = 0.6  # Confidence required for disease detection
             predicted_idx = np.argmax(predictions, axis=-1)[0]
             confidence = predictions[0][predicted_idx]
 
+            # Decision logic for "No Cancer Detected"
             if confidence < confidence_threshold:
+                disease_name = "Clear Skin - No Cancer Detected"
                 st.success("✅ No cancer detected in the uploaded skin image.")
-                st.subheader("Clear Skin - No Cancer Detected")
+                st.subheader(disease_name)
             else:
                 disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
                 st.success(f"✅ Prediction Confidence: {confidence:.2%}")
@@ -138,7 +191,6 @@ elif app_mode == "Train & Test Model":
                 if X_train is not None:
                     create_and_train_model(X_train, y_train, X_test, y_test)
 elif app_mode == "Prediction":
-    st.title("Skin Cancer Prediction via Image Upload")
     uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
     if uploaded_image:
         st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
@@ -150,6 +202,7 @@ elif app_mode == "About":
         Skin Cancer Vision uses AI-powered image analysis to predict potential skin cancer diseases by analyzing uploaded images.
         It provides users and healthcare professionals a simple way to monitor and diagnose signs of skin cancer early.
     """)
+
 
 
 
