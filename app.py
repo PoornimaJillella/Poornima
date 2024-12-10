@@ -9,6 +9,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import class_weight
 from PIL import Image
 import os
+import tensorflow.keras.backend as K
 
 
 # Helper Functions
@@ -66,6 +67,7 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
         Dense(64, activation="relu", input_shape=(4,)),  # Input shape matches feature vector length
         Dropout(0.5),
         Dense(32, activation="relu"),
+        Dropout(0.5),
         Dense(num_classes, activation="softmax")  # Dynamically match the number of classes
     ])
 
@@ -83,7 +85,8 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
         verbose=2
     )
 
-    # Save the model
+    # Ensure directory exists for saving the model
+    os.makedirs('./data', exist_ok=True)
     model_save_path = './data/trained_skin_cancer_model.keras'
     model.save(model_save_path)
     st.success(f"✅ Model trained and saved to: {model_save_path}")
@@ -105,17 +108,18 @@ def preprocess_uploaded_image(image_file):
         image = Image.open(image_file).convert('RGB').resize((128, 128))
         image = np.array(image) / 255.0  # Normalize pixel values
 
-        # Add an alpha-like channel for variability
-        alpha_channel = np.ones((128, 128, 1))  # Constant alpha-like channel
-        image_with_alpha = np.concatenate((image, alpha_channel), axis=-1)  # Merge RGB with simulated alpha
+        # Flatten or average features across the image dimensions
+        features = image.mean(axis=(0, 1))  # Mean across spatial dimensions for RGB
+        if features.shape[0] != 3:
+            st.error(f"Unexpected feature shape: {features.shape}")
+            return None
+        # Add a constant alpha-like channel
+        alpha_channel = np.array([0.5])  # Example value; adjust normalization as needed
+        features_with_alpha = np.concatenate((features, alpha_channel))  # Shape should now match 4
 
-        # Create a feature vector by averaging over pixel space
-        flat_features = image_with_alpha.mean(axis=(0, 1))  # Compute average across spatial dimensions
-        flat_features = np.expand_dims(flat_features, axis=0)  # Reshape into shape (1, 4)
+        st.write("Processed feature vector ready for prediction:", features_with_alpha.shape)
 
-        st.write("Processed feature vector ready for prediction:", flat_features.shape)
-
-        return flat_features
+        return np.expand_dims(features_with_alpha, axis=0)  # Reshape into shape (1, 4)
     except Exception as e:
         st.error(f"Error processing the image: {e}")
         print(e)
@@ -130,25 +134,22 @@ DISEASE_MAPPING = {
 }
 
 
-def run_prediction(image_file):
+def run_prediction(image_file, model):
     """
     Preprocesses the image, runs it through the trained model, and returns the predicted class.
+    Introduces variance using Monte Carlo Dropout.
     """
-    # Extract file name without extension
-    image_name = os.path.splitext(image_file.name)[0]
-
-    # Load the trained model
-    model = tf.keras.models.load_model('./data/trained_skin_cancer_model.keras')
-
-    # Preprocess uploaded image into a format expected by the model
     features = preprocess_uploaded_image(image_file)
 
     if features is not None:
         try:
-            # Run prediction
-            predictions = model.predict(features)
-            predicted_idx = np.argmax(predictions, axis=1)[0]
-            confidence = predictions[0][predicted_idx]
+            # Perform prediction with stochastic inference (Monte Carlo Dropout)
+            n_samples = 100
+            f = K.function([model.input, K.learning_phase()], [model.output])
+            predictions = np.array([f([features, 1])[0] for _ in range(n_samples)])
+            mean_prediction = predictions.mean(axis=0)
+            predicted_idx = np.argmax(mean_prediction, axis=1)[0]
+            confidence = mean_prediction[0][predicted_idx]
 
             # Map index to disease
             disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
@@ -156,7 +157,7 @@ def run_prediction(image_file):
             # Display the prediction and confidence
             st.success(f"✅ Prediction Confidence: {confidence:.2%}")
             st.subheader(f"Predicted Disease: {disease_name}")
-            st.info(f"Based on uploaded image: {image_name}")
+            st.info(f"Based on uploaded image.")
             return predicted_idx, confidence
         except Exception as e:
             st.error(f"Error during model prediction: {e}")
@@ -169,7 +170,6 @@ def run_prediction(image_file):
 # Sidebar Menu
 st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
-
 
 # Main Pages
 if app_mode == "Home":
@@ -193,7 +193,7 @@ elif app_mode == "Train & Test Model":
         if st.button("Train Model"):
             with st.spinner("🔄 Training model..."):
                 X_train, X_test, y_train, y_test, label_encoder = preprocess_data(df)
-                create_and_train_model(X_train, y_train, X_test, y_test)
+                model = create_and_train_model(X_train, y_train, X_test, y_test)
 
 elif app_mode == "Prediction":
     st.header("🔮 Make Predictions")
@@ -203,7 +203,11 @@ elif app_mode == "Prediction":
         st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
         if st.button("Run Prediction"):
             with st.spinner("⏳ Running prediction..."):
-                run_prediction(uploaded_image)
+                if os.path.exists('./data/trained_skin_cancer_model.keras'):
+                    model = tf.keras.models.load_model('./data/trained_skin_cancer_model.keras')
+                    run_prediction(uploaded_image, model)
+                else:
+                    st.error("Model not trained. Train a model first.")
 
 elif app_mode == "About":
     st.header("📖 About This App")
@@ -214,6 +218,7 @@ elif app_mode == "About":
     - Real-time predictions using uploaded images.
     - Dynamic visualization and prediction results based on input data.
     """)
+
 
 
 
