@@ -96,41 +96,6 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
     return model
 
 
-def preprocess_uploaded_image(image_file):
-    """
-    Preprocesses the uploaded image to extract unique statistical features for model input.
-    """
-    try:
-        # Open image and resize
-        image = Image.open(image_file).convert('RGB').resize((128, 128))
-        image_array = np.array(image) / 255.0  # Normalize pixel values
-
-        # Extract features
-        mean_rgb = image_array.mean(axis=(0, 1))
-        std_rgb = image_array.std(axis=(0, 1))
-        max_rgb = image_array.max(axis=(0, 1))
-        min_rgb = image_array.min(axis=(0, 1))
-
-        # Combine features
-        feature_vector = np.array([
-            mean_rgb.mean(),
-            std_rgb.mean(),
-            max_rgb.mean(),
-            min_rgb.mean()
-        ])
-
-        # Normalize and reshape
-        feature_vector = np.expand_dims(feature_vector, axis=0)  # Reshape into (1, 4)
-
-        st.write("Extracted feature vector for prediction:", feature_vector.shape)
-        return feature_vector
-    except Exception as e:
-        st.error(f"Error processing the image: {e}")
-        print(e)
-        return None
-
-
-# Prediction logic with random disease selection
 DISEASE_MAPPING = {
     0: "Melanoma",
     1: "Basal Cell Carcinoma",
@@ -167,18 +132,48 @@ def run_prediction(image_file):
 st.sidebar.title("🩺 Skin Vision Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
+
 if app_mode == "Home":
     st.title("Welcome to SkinVision.com 🩺")
     st.write("SkinVision.com empowers early detection using advanced AI-powered skin cancer detection tools.")
     st.subheader("Explore features, upload data, and analyze results!")
 
+elif app_mode == "Train & Test Model":
+    st.title("Train and Test Model with Your Dataset")
+    uploaded_file = st.file_uploader("Upload your CSV file for training", type=["csv"])
+    if uploaded_file:
+        if st.button("Train Model"):
+            with st.spinner("Training model..."):
+                df = pd.read_csv(uploaded_file)
+                X_train, X_test, y_train, y_test, label_encoder = preprocess_data(df)
+                create_and_train_model(X_train, y_train, X_test, y_test)
+
 elif app_mode == "Prediction":
+    st.title("Skin Cancer Prediction")
     uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
     if uploaded_image:
         st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
         if st.button("Run Prediction"):
             with st.spinner("Running prediction..."):
                 run_prediction(uploaded_image)
+
+elif app_mode == "About":
+    st.title("About SkinVision AI Dashboard 🩺")
+    st.write("""
+    SkinVision AI is a tool designed for educational and informational purposes. 
+    It allows users to:
+    - Train and test a skin cancer detection model using their dataset.
+    - Predict the likelihood of skin cancer based on uploaded images.
+    
+    **Model Disclaimer**:
+    This is a simulated example. Predictions should not be used for clinical diagnosis. Always consult a medical professional for diagnosis.
+    
+    **Developer Info**:
+    - Developed by OpenAI GPT-4
+    - Tools powered by TensorFlow, Streamlit, and Machine Learning libraries.
+    """)
+
+
 
 
 
