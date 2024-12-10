@@ -163,7 +163,7 @@ if app_mode == "Home":
     st.title("🔬Welcome to Skin Cancer Vision ")
     st.write("This web application uses machine learning techniques to demonstrate skin cancer risk detection and predictions.Our AI-powered platform analyzes images of skin lesions to identify signs of melanoma and other skin cancers, enabling users to take proactive steps towards better skin health. The website serves as a tool for individuals, healthcare providers, and researchers looking to utilize AI technology in skin cancer prevention.")
     st.subheader("Empowering Early Detection with AI-Driven Skin Cancer Diagnosis")
-    st.subheader("Explore the features and interact with the app!")
+    st.subheader("Explore the features and interact with the application!")
 elif app_mode == "Train & Test Model":
     st.title("Train Your Model with Custom Data")
     uploaded_file = st.file_uploader("Upload your CSV file for training", type=["csv"])
@@ -189,8 +189,8 @@ elif app_mode == "About":
     st.write("""
         Skin Cancer Vision is a machine learning-based application that uses image analysis and statistical insights
         to detect potential risk of skin cancer diseases. It provides predictive insights based on uploaded image features
-        or trained model data for diagnosis purposes.
-    """)
+        or trained model data for diagnosis purposes.Our mission is to improve early detection of skin cancer, saving lives through accessible, data-driven insights. We believe that by providing easy-to-use tools powered by AI, we can help users make informed, proactive health decisions.Early detection saves lives. Let’s make it possible—together.
+        """)
     st.markdown("[Visit our website at skincancervision.com](http://skincancervision.com)")
 
 
