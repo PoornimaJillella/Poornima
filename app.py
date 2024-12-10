@@ -3,13 +3,12 @@ import pandas as pd
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout, Conv2D, MaxPooling2D, Flatten
+from tensorflow.keras.layers import Dense, Dropout
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import class_weight
 from PIL import Image
 import os
-import tensorflow.keras.backend as K
 
 
 # Helper Functions
@@ -44,7 +43,7 @@ def preprocess_data(df):
 
 def create_and_train_model(X_train, y_train, X_test, y_test):
     """
-    Defines, compiles, and trains a CNN model for classification with proper class handling.
+    Defines, compiles, and trains a basic model for classification with proper class handling.
     Handles class imbalance by computing class weights.
     Saves model after training.
     """
@@ -61,14 +60,12 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
     # Debugging output
     st.write("Class weights computed:", class_weights_dict)
 
-    # Define the CNN model architecture
+    # Define the model architecture
     num_classes = len(class_weights_dict)
     model = Sequential([
-        Conv2D(32, (3,3), activation="relu", input_shape=(128, 128, 3)),  # Input dimensions for images
-        MaxPooling2D((2,2)),
-        Flatten(),
-        Dense(64, activation="relu"),
+        Dense(64, activation="relu", input_shape=(4,)),  # Input shape matches feature vector length
         Dropout(0.5),
+        Dense(32, activation="relu"),
         Dense(num_classes, activation="softmax")  # Dynamically match the number of classes
     ])
 
@@ -76,7 +73,7 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
     # Train the model with class weights
-    history = model.fit(
+    model.fit(
         X_train,
         y_train,
         validation_split=0.2,
@@ -95,31 +92,30 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
     loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
     st.success(f"🔍 Test Accuracy: {accuracy:.2%}")
     
-    # Return the model for predictions
     return model
 
 
-def preprocess_uploaded_image(image_file, add_noise=True):
+def preprocess_uploaded_image(image_file):
     """
     Preprocess the uploaded image into numerical features expected by the model.
-    Introduces intentional variance by adding slight random noise for variability in prediction.
+    This converts the uploaded image into a 4-dimensional vector expected by the trained model.
     """
     try:
         # Open the image and resize
         image = Image.open(image_file).convert('RGB').resize((128, 128))
         image = np.array(image) / 255.0  # Normalize pixel values
 
-        if add_noise:
-            # Add variance/noise for stochastic behavior
-            noise = np.random.normal(0, 0.01, image.shape)  # Gaussian noise
-            image += noise
+        # Add an alpha-like channel for variability
+        alpha_channel = np.ones((128, 128, 1))  # Constant alpha-like channel
+        image_with_alpha = np.concatenate((image, alpha_channel), axis=-1)  # Merge RGB with simulated alpha
 
-        # Ensure the image is reshaped properly for CNNs
-        image = np.expand_dims(image, axis=0)  # Shape becomes (1, 128, 128, 3)
+        # Create a feature vector by averaging over pixel space
+        flat_features = image_with_alpha.mean(axis=(0, 1))  # Compute average across spatial dimensions
+        flat_features = np.expand_dims(flat_features, axis=0)  # Reshape into shape (1, 4)
 
-        st.write("Processed image shape ready for prediction:", image.shape)
+        st.write("Processed feature vector ready for prediction:", flat_features.shape)
 
-        return image
+        return flat_features
     except Exception as e:
         st.error(f"Error processing the image: {e}")
         print(e)
@@ -136,7 +132,7 @@ DISEASE_MAPPING = {
 
 def run_prediction(image_file):
     """
-    Preprocesses the image and makes a stochastic prediction with intentional variance.
+    Preprocesses the image, runs it through the trained model, and returns the predicted class.
     """
     # Extract file name without extension
     image_name = os.path.splitext(image_file.name)[0]
@@ -149,21 +145,18 @@ def run_prediction(image_file):
 
     if features is not None:
         try:
-            # Predict with the model
+            # Run prediction
             predictions = model.predict(features)
-
-            # Map index to disease
-            predicted_idx = np.argmax(predictions, axis=-1)[0]
+            predicted_idx = np.argmax(predictions, axis=1)[0]
             confidence = predictions[0][predicted_idx]
 
-            # Map index to disease name
+            # Map index to disease
             disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
 
-            # Render prediction results
+            # Display the prediction and confidence
             st.success(f"✅ Prediction Confidence: {confidence:.2%}")
             st.subheader(f"Predicted Disease: {disease_name}")
             st.info(f"Based on uploaded image: {image_name}")
-
             return predicted_idx, confidence
         except Exception as e:
             st.error(f"Error during model prediction: {e}")
@@ -173,15 +166,51 @@ def run_prediction(image_file):
     return None, None
 
 
-# Streamlit UI
-st.title("Skin Cancer Diagnosis Prediction")
-st.write("""
-This application uses a trained neural network to classify uploaded skin images
-into potential disease categories. Upload a skin lesion image to begin.
-""")
+# Sidebar Menu
+st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
+app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
-uploaded_image = st.file_uploader("Upload an image of a skin lesion", type=["jpg", "jpeg", "png"])
 
-if uploaded_image:
-    if st.button("Run Prediction"):
-        run_prediction(uploaded_image)
+# Main Pages
+if app_mode == "Home":
+    st.title("🌿 Skin Cancer Detection App")
+    st.markdown("""
+    This web app allows you to:
+    - Train a model with your own CSV dataset.
+    - Test your uploaded image to check for skin cancer risk.
+    - Use a pre-trained model for instant predictions.
+    """)
+
+elif app_mode == "Train & Test Model":
+    st.header("🛠 Train & Test Model")
+    uploaded_file = st.file_uploader("Upload your CSV file for training", type=["csv"])
+
+    if uploaded_file:
+        st.info("📊 Dataset loaded successfully. Preparing for training...")
+        df = pd.read_csv(uploaded_file)
+        st.write("Dataset Preview:", df.head())
+
+        if st.button("Train Model"):
+            with st.spinner("🔄 Training model..."):
+                X_train, X_test, y_train, y_test, label_encoder = preprocess_data(df)
+                create_and_train_model(X_train, y_train, X_test, y_test)
+
+elif app_mode == "Prediction":
+    st.header("🔮 Make Predictions")
+    uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
+
+    if uploaded_image:
+        st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
+        if st.button("Run Prediction"):
+            with st.spinner("⏳ Running prediction..."):
+                run_prediction(uploaded_image)
+
+elif app_mode == "About":
+    st.header("📖 About This App")
+    st.markdown("""
+    This web application uses machine learning techniques to predict skin cancer risk from dermoscopic image data.
+    Built with Streamlit and TensorFlow, it allows:
+    - Model training with custom datasets.
+    - Real-time predictions using uploaded images.
+    - Dynamic visualization and prediction results based on input data.
+    """)
