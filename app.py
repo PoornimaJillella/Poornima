@@ -162,7 +162,7 @@ app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "P
 if app_mode == "Home":
     st.title("🔬Welcome to Skin Cancer Vision ")
     st.write("This web application uses machine learning techniques to demonstrate skin cancer risk detection and predictions.")
-    st.subheader("Explore the features and interact with the app!")
+    st.subheader("Empowering Early Detection with AI-Driven Skin Cancer Diagnosis\nExplore the features and interact with the app!")
 
 elif app_mode == "Train & Test Model":
     st.title("Train Your Model with Custom Data")
