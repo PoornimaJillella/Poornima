@@ -99,7 +99,6 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
 def preprocess_uploaded_image(image_file):
     """
     Preprocess the uploaded image into numerical features expected by the model.
-    This converts the uploaded image into a 4-dimensional vector expected by the trained model.
     """
     try:
         # Open the image and resize
@@ -107,7 +106,7 @@ def preprocess_uploaded_image(image_file):
         image = np.array(image) / 255.0  # Normalize pixel values
 
         # Add an alpha-like channel for variability
-        alpha_channel = np.ones((128, 128, 1))  # Constant alpha-like channel
+        alpha_channel = np.ones((128, 128, 1))  # Simulate alpha-like channel
         image_with_alpha = np.concatenate((image, alpha_channel), axis=-1)  # Merge RGB with simulated alpha
 
         # Create a feature vector by averaging over pixel space
@@ -133,7 +132,7 @@ DISEASE_MAPPING = {
 
 def run_prediction(image_file):
     """
-    Preprocesses the image, runs it through the trained model, and returns the predicted class with alternative name variability.
+    Preprocesses the image, runs it through the trained model, and randomly selects one of the top 3 alternative predictions.
     """
     # Extract file name without extension
     image_name = os.path.splitext(image_file.name)[0]
@@ -148,28 +147,20 @@ def run_prediction(image_file):
         try:
             # Run prediction
             predictions = model.predict(features)
-            predicted_idx = np.argmax(predictions, axis=1)[0]
+            # Get the top 3 predictions
+            top_3_indices = predictions[0].argsort()[-3:][::-1]
 
-            # Simulate alternative naming by random choice between similar classes
-            alternative_choices = [idx for idx in range(len(DISEASE_MAPPING))]
-            alternative_choices.remove(predicted_idx)  # Exclude the most likely prediction
-            random_alternative = random.choice(alternative_choices)  # Randomly select one other class
+            # Randomly choose one of the top 3 predictions
+            random_prediction_idx = random.choice(top_3_indices)
 
             # Map index to disease names
-            main_disease = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
-            alternative_disease = DISEASE_MAPPING.get(random_alternative, "Unknown Alternative")
+            disease_name = DISEASE_MAPPING.get(random_prediction_idx, "Unknown Disease")
 
-            # Randomly decide which disease name to show to simulate variability
-            if random.random() > 0.5:
-                disease_name = main_disease
-            else:
-                disease_name = alternative_disease
-
-            # Display the prediction and confidence
-            st.success(f"✅ Prediction Confidence: {predictions[0][predicted_idx]:.2%}")
+            # Display results
+            st.success(f"✅ Prediction Confidence: {predictions[0][random_prediction_idx]:.2%}")
             st.subheader(f"Predicted Disease: {disease_name}")
             st.info(f"Based on uploaded image: {image_name}")
-            return predicted_idx, predictions[0][predicted_idx]
+            return random_prediction_idx, predictions[0][random_prediction_idx]
         except Exception as e:
             st.error(f"Error during model prediction: {e}")
             print(e)
@@ -216,6 +207,7 @@ elif app_mode == "Prediction":
         if st.button("Run Prediction"):
             with st.spinner("⏳ Running prediction..."):
                 run_prediction(uploaded_image)
+
 
 
 
