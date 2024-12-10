@@ -190,9 +190,11 @@ elif app_mode == "About":
         Skin Cancer Vision is a machine learning-based application that uses image analysis and statistical insights
         to detect potential risk of skin cancer diseases. It provides predictive insights based on uploaded image features
         or trained model data for diagnosis purposes.
-        *Our mission is to improve early detection of skin cancer, saving lives through accessible, data-driven insights. We believe that by providing easy-to-use tools powered by AI, we can help users make informed, proactive health decisions.Early detection saves lives. Let’s make it possible—together.
         """)
-    
+    st.subheader("Our mission is to improve early detection of skin cancer, saving lives through accessible, data-driven insights. We believe that by providing easy-to-use tools powered by AI, we can help users make informed, proactive health decisions.
+
+Early detection saves lives. Let’s make it possible—together.
+")
 
 
 
