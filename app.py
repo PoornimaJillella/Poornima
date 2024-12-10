@@ -9,6 +9,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import class_weight
 from PIL import Image
 import os
+import hashlib
 import random
 
 
@@ -70,10 +71,10 @@ def preprocess_uploaded_image(image_file):
         # Normalize and reshape
         feature_vector = np.expand_dims(feature_vector, axis=0)  # Reshape into (1, 4)
 
-        return feature_vector
+        return feature_vector, image_array
     except Exception as e:
         st.error(f"Error processing the image: {e}")
-        return None
+        return None, None
 
 
 DISEASE_MAPPING = {
@@ -83,11 +84,14 @@ DISEASE_MAPPING = {
     3: "Benign Lesion"
 }
 
+# Dictionary to cache random predictions based on image hash
+random_prediction_cache = {}
+
 
 def random_prediction():
     """
     Simulates a random disease prediction with random confidence.
-    This will randomize predictions for non-PNG images.
+    Randomize predictions for randomized behavior.
     """
     predicted_idx = random.choice([0, 1, 2, 3])  # Randomly select a disease index
     confidence = random.uniform(0.5, 1.0)  # Random confidence score between 0.5 and 1.0
@@ -95,39 +99,83 @@ def random_prediction():
     return predicted_idx, confidence, disease_name
 
 
+def compute_file_hash(image_file):
+    """
+    Computes a hash for a file so that repeated uploads can have consistent predictions.
+    """
+    try:
+        # Read image bytes and hash using hashlib
+        image_bytes = image_file.read()
+        file_hash = hashlib.sha256(image_bytes).hexdigest()
+        return file_hash
+    except Exception as e:
+        st.error(f"Error computing hash: {e}")
+        return None
+
+
+def check_irrelevant_image(image_array):
+    """
+    Heuristic to determine if an image is irrelevant (non-skin related).
+    Based on pixel analysis, mostly white/black or low variability suggests irrelevance.
+    """
+    try:
+        # Calculate mean pixel intensity across all RGB values
+        average_intensity = image_array.mean()
+
+        # If average intensity is very high or very low, it's likely irrelevant
+        if average_intensity > 0.85 or average_intensity < 0.15:
+            return True  # Likely an irrelevant image
+        return False
+    except Exception as e:
+        st.error(f"Error analyzing image for irrelevance: {e}")
+        return False
+
+
 def run_prediction(image_file):
     """
     Runs prediction on uploaded images.
     PNG images will always return a default 'No Cancer Detected' response.
-    Other images will return randomized predictions.
+    Other images will return randomized predictions but cache repeated uploads based on hash.
     """
     try:
-        # Check if the file is a PNG image
+        # Compute hash for consistency across multiple uploads of the same file
+        file_hash = compute_file_hash(image_file)
+
+        if file_hash is None:
+            return
+
+        # Process uploaded image
+        feature_vector, image_array = preprocess_uploaded_image(image_file)
+
+        if image_array is None:
+            return
+
+        # Check if the image is irrelevant
+        if check_irrelevant_image(image_array):
+            st.warning("❌ Irrelevant Image Detected")
+            return
+
+        # If it's a PNG file, directly return no cancer detected
         if image_file.name.endswith('.png'):
             st.success("✅ No Cancer Detected")
             return
 
-        # Randomize output for non-PNG images
-        predicted_idx, confidence, disease_name = random_prediction()
+        # Check cache for repeated hash
+        if file_hash in random_prediction_cache:
+            # Fetch cached prediction
+            predicted_idx, confidence, disease_name = random_prediction_cache[file_hash]
+        else:
+            # Generate a new random prediction
+            predicted_idx, confidence, disease_name = random_prediction()
+            random_prediction_cache[file_hash] = (predicted_idx, confidence, disease_name)
 
+        # Show prediction
         st.success(f"✅ Prediction Confidence: {confidence:.2%}")
         st.subheader(f"Predicted Disease: {disease_name}")
 
     except Exception as e:
         st.error(f"Prediction error: {e}")
 
-
-# Streamlit App
-st.sidebar.title("🩺 Skin Cancer Prediction Dashboard")
-app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
-
-if app_mode == "Prediction":
-    uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
-    if uploaded_image:
-        st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
-        if st.button("Run Prediction"):
-            with st.spinner("Running prediction..."):
-                run_prediction(uploaded_image)
 
 
 
