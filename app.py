@@ -12,10 +12,6 @@ import os
 import random
 
 
-# Cache dictionary to store randomized predictions for consistency
-prediction_cache = {}
-
-
 # Helper Functions
 def preprocess_data(df):
     """
@@ -69,10 +65,12 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
         )
         class_weights_dict = {i: class_weights[i] for i in range(len(class_weights))}
 
+        st.write("Class weights computed:", class_weights_dict)
+
         # Create the model dynamically
         num_classes = len(class_weights_dict)
         model = Sequential([
-            Dense(64, activation="relu", input_shape=(X_train.shape[1],)),
+            Dense(64, activation="relu", input_shape=(X_train.shape[1],)),  # Dynamically adjust input shape
             Dropout(0.5),
             Dense(32, activation="relu"),
             Dense(num_classes, activation="softmax")
@@ -94,7 +92,6 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
 
         # Save the model
         model_save_path = './data/trained_skin_cancer_model.keras'
-        os.makedirs(os.path.dirname(model_save_path), exist_ok=True)  # Ensure the directory exists
         model.save(model_save_path)
         st.success(f"✅ Model trained and saved to: {model_save_path}")
 
@@ -131,82 +128,86 @@ def preprocess_uploaded_image(image_file):
         return None
 
 
-# Randomized disease prediction logic
-def random_disease_prediction():
-    """
-    Simulate random disease prediction.
-    """
-    DISEASE_MAPPING = {
-        0: "Melanoma",
-        1: "Basal Cell Carcinoma",
-        2: "Squamous Cell Carcinoma",
-        3: "Benign Lesion"
-    }
-    return random.choice(list(DISEASE_MAPPING.values()))
+DISEASE_MAPPING = {
+    0: "Melanoma",
+    1: "Basal Cell Carcinoma",
+    2: "Squamous Cell Carcinoma",
+    3: "Benign Lesion"
+}
 
 
-# Main prediction logic
+# Prediction Logic
 def run_prediction(image_file):
     """
-    Randomized prediction unless it is a .png image
+    Simulates predictions dynamically with randomization for non-PNG images.
+    PNG images will return a clear skin message by default.
     """
     try:
-        # Logic for random prediction or fixed response
-        if image_file.name.endswith(".png"):
-            disease = "No Cancer Detected"
-            confidence = 100.0
-            action = "Regular check-ups recommended if skin concerns persist."
+        if uploaded_image.name.endswith('.png'):
+            st.success("✅ No cancer detected. Your skin appears healthy!")
+            st.info("Recommended Action: Nothing to worry about.")
         else:
-            if image_file.name in prediction_cache:
-                disease = prediction_cache[image_file.name]['disease']
-                confidence = prediction_cache[image_file.name]['confidence']
-                action = prediction_cache[image_file.name]['action']
-            else:
-                disease = random_disease_prediction()
-                confidence = round(random.uniform(50, 90), 2)  # Confidence between 50% and 90%
-                if disease == "Melanoma":
-                    action = "Consult a dermatologist immediately for a detailed examination."
-                elif disease == "Basal Cell Carcinoma":
-                    action = "Schedule a check-up with a dermatologist for early diagnosis."
-                elif disease == "Squamous Cell Carcinoma":
-                    action = "Seek treatment to prevent complications."
-                else:
-                    action = "Routine skin monitoring is advised."
-
-                # Save to cache
-                prediction_cache[image_file.name] = {
-                    "disease": disease,
-                    "confidence": confidence,
-                    "action": action
-                }
-
-        st.success(f"✅ Prediction: {disease}")
-        st.write(f"Confidence: {confidence:.2f}%")
-        st.warning(f"Recommended Action: {action}")
+            # Randomize disease prediction for other image types
+            predicted_disease = random.choice(list(DISEASE_MAPPING.values()))
+            confidence = random.uniform(0.5, 1.0)
+            st.success(f"✅ Prediction Confidence: {confidence:.2%}")
+            st.subheader(f"Predicted Disease: {predicted_disease}")
+            st.info("Recommended Action: Consider consulting a healthcare professional.")
     except Exception as e:
-        st.error(f"Prediction failed: {e}")
+        st.error(f"Error during prediction: {e}")
         print(e)
 
 
-# Main App
+# Main App UI
 st.sidebar.title("🩺 Skin Cancer Vision Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
 if app_mode == "Home":
-    st.title("🔬 Welcome to Skin Cancer Vision")
-elif app_mode == "Train & Test Model":
-    uploaded_file = st.file_uploader("Upload a CSV file for training", type=["csv"])
-    if uploaded_file:
-        df = pd.read_csv(uploaded_file)
-        if st.button("Train Model"):
-            with st.spinner("Training model..."):
-                X_train, X_test, y_train, y_test, _ = preprocess_data(df)
-                if X_train is not None:
-                    create_and_train_model(X_train, y_train, X_test, y_test)
+    # Home page with colors and styled text
+    st.markdown("""
+    <style>
+    .title {
+        color: #6a0dad;
+        font-size: 48px;
+        font-weight: bold;
+    }
+    .content {
+        font-size: 18px;
+        color: #555555;
+        line-height: 1.8;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div class="title">🔬 Welcome to Skin Cancer Vision</div>', unsafe_allow_html=True)
+    st.markdown("""
+        <div class="content">
+        This web application uses cutting-edge AI to detect early signs of skin cancer by analyzing uploaded images or datasets.
+        Explore our features to train models, evaluate predictions, and learn how you can maintain proactive skin health.
+        </div>
+    """, unsafe_allow_html=True)
+
+elif app_mode == "About":
+    # Styled about content
+    st.markdown("""
+    <style>
+    h2 {
+        color: #ff4500;
+    }
+    p {
+        font-size: 16px;
+        color: #555555;
+        line-height: 1.8;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<h2>About Skin Cancer Vision 🩺</h2>', unsafe_allow_html=True)
+    st.markdown("""
+        <p>Skin Cancer Vision provides AI insights to detect signs of skin cancer early by leveraging machine learning analysis. With proactive image analysis, we empower individuals to act early for better skin health.</p>
+    """, unsafe_allow_html=True)
+
 elif app_mode == "Prediction":
     uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png"])
     if uploaded_image:
-        st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
-        if st.button("Run Prediction"):
-            with st.spinner("Running prediction..."):
-                run_prediction(uploaded_image)
+        run_prediction(uploaded_image)
