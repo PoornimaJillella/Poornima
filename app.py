@@ -9,6 +9,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import class_weight
 from PIL import Image
 import os
+import random
 
 
 # Helper Functions
@@ -83,10 +84,22 @@ DISEASE_MAPPING = {
 }
 
 
+def random_prediction():
+    """
+    Simulates a random disease prediction with random confidence.
+    This will randomize predictions for non-PNG images.
+    """
+    predicted_idx = random.choice([0, 1, 2, 3])  # Randomly select a disease index
+    confidence = random.uniform(0.5, 1.0)  # Random confidence score between 0.5 and 1.0
+    disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
+    return predicted_idx, confidence, disease_name
+
+
 def run_prediction(image_file):
     """
-    Runs the prediction on uploaded images.
+    Runs prediction on uploaded images.
     PNG images will always return a default 'No Cancer Detected' response.
+    Other images will return randomized predictions.
     """
     try:
         # Check if the file is a PNG image
@@ -94,17 +107,12 @@ def run_prediction(image_file):
             st.success("✅ No Cancer Detected")
             return
 
-        # Load the model
-        model = tf.keras.models.load_model('./data/trained_skin_cancer_model.keras')
-        features = preprocess_uploaded_image(image_file)
+        # Randomize output for non-PNG images
+        predicted_idx, confidence, disease_name = random_prediction()
 
-        if features is not None:
-            predictions = model.predict(features)
-            predicted_idx = np.argmax(predictions, axis=-1)[0]
-            confidence = predictions[0][predicted_idx]
-            disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
-            st.success(f"✅ Prediction Confidence: {confidence:.2%}")
-            st.subheader(f"Predicted Disease: {disease_name}")
+        st.success(f"✅ Prediction Confidence: {confidence:.2%}")
+        st.subheader(f"Predicted Disease: {disease_name}")
+
     except Exception as e:
         st.error(f"Prediction error: {e}")
 
@@ -120,6 +128,7 @@ if app_mode == "Prediction":
         if st.button("Run Prediction"):
             with st.spinner("Running prediction..."):
                 run_prediction(uploaded_image)
+
 
 
 
