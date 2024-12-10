@@ -64,12 +64,10 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
         )
         class_weights_dict = {i: class_weights[i] for i in range(len(class_weights))}
 
-        st.write("Class weights computed:", class_weights_dict)
-
         # Create the model dynamically
         num_classes = len(class_weights_dict)
         model = Sequential([
-            Dense(64, activation="relu", input_shape=(X_train.shape[1],)),  # Dynamically adjust input shape
+            Dense(64, activation="relu", input_shape=(X_train.shape[1],)),
             Dropout(0.5),
             Dense(32, activation="relu"),
             Dense(num_classes, activation="softmax")
@@ -91,6 +89,7 @@ def create_and_train_model(X_train, y_train, X_test, y_test):
 
         # Save the model
         model_save_path = './data/trained_skin_cancer_model.keras'
+        os.makedirs(os.path.dirname(model_save_path), exist_ok=True)  # Ensure the directory exists
         model.save(model_save_path)
         st.success(f"✅ Model trained and saved to: {model_save_path}")
 
@@ -127,23 +126,58 @@ def preprocess_uploaded_image(image_file):
         return None
 
 
+# Run predictions
+def run_prediction(image_file):
+    """
+    Preprocesses image and predicts using trained model
+    """
+    try:
+        model_path = './data/trained_skin_cancer_model.keras'
+        if not os.path.exists(model_path):
+            st.error("Model not found. Please train the model first.")
+            return
+
+        # Preprocess the image
+        features = preprocess_uploaded_image(image_file)
+        if features is None:
+            st.error("Failed to preprocess the image.")
+            return
+
+        model = tf.keras.models.load_model(model_path)
+
+        # Run prediction
+        predictions = model.predict(features)
+        predicted_idx = np.argmax(predictions, axis=-1)[0]
+        confidence = predictions[0][predicted_idx]
+
+        # Map index to disease
+        DISEASE_MAPPING = {
+            0: "Melanoma",
+            1: "Basal Cell Carcinoma",
+            2: "Squamous Cell Carcinoma",
+            3: "Benign Lesion"
+        }
+
+        disease_name = DISEASE_MAPPING.get(predicted_idx, "Unknown Disease")
+        st.success(f"✅ Prediction Confidence: {confidence:.2%}")
+        st.subheader(f"Predicted Disease: {disease_name}")
+    except Exception as e:
+        st.error(f"Prediction failed: {e}")
+        print(e)
+
+
 # Main App
 st.sidebar.title("🩺 Skin Cancer Vision Dashboard")
 app_mode = st.sidebar.selectbox("Select Mode", ["Home", "Train & Test Model", "Prediction", "About"])
 
 if app_mode == "Home":
     st.title("🔬 Welcome to Skin Cancer Vision")
-    st.write("""
-        This web application uses machine learning techniques to demonstrate
-        skin cancer risk detection and predictions. Our AI-powered platform analyzes images of skin lesions
-        to identify signs of melanoma and other skin cancers, enabling users to take proactive steps towards better skin health.
-    """)
 elif app_mode == "Train & Test Model":
     uploaded_file = st.file_uploader("Upload a CSV file for training", type=["csv"])
     if uploaded_file:
         df = pd.read_csv(uploaded_file)
         if st.button("Train Model"):
-            with st.spinner("Training Model..."):
+            with st.spinner("Training model..."):
                 X_train, X_test, y_train, y_test, _ = preprocess_data(df)
                 if X_train is not None:
                     create_and_train_model(X_train, y_train, X_test, y_test)
@@ -154,29 +188,3 @@ elif app_mode == "Prediction":
         if st.button("Run Prediction"):
             with st.spinner("Running prediction..."):
                 run_prediction(uploaded_image)
-elif app_mode == "About":
-    st.write("""
-        Skin Cancer Vision uses AI-powered image analysis to predict potential skin cancer diseases by analyzing uploaded images.
-        It provides users and healthcare professionals a simple way to monitor and diagnose signs of skin cancer early.
-    """)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
